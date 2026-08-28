@@ -152,11 +152,8 @@ tick once the round tick passes `ShrinkStartTick`, floored at `RingRadiusMin`.
    then friction, the **rest floor** (integer friction can never reach zero, so
    a body inside `RestFloorUm` — 64 µm/tick, 0.0015 m/s — is snapped to rest and
    a coast really does end), the per-posture speed clamp, and `p += v`.
-6. **Body–body contacts.** Five collision discs a side (torso + four feet), so
-   25 pairs in one fixed order, every live test **swept**. A pair is skipped
-   when either disc belongs to a prone bug (it folds its legs in, leaving the
-   torso disc alone) or to a foot that is over the rim, so between 1 and 25
-   pairs are tested on a tick. Positional split (a prone body takes the whole penetration),
+6. **Body–body contacts.** Ten disc pairs in one fixed order, every test
+   **swept**. Positional split (a prone body takes the whole penetration),
    normal impulse (equal masses), then the **shove**: a grounded foot with
    effort pushes the other bug away along the contact normal. The momentum comes
    from the **floor**, not from the receiver, so a well-planted pusher
