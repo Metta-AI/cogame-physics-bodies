@@ -128,8 +128,13 @@ block:
     sim.bodies[0].downTicks = 0
     sim.bodies[0].tipMilli = 0
     ## "Under its OWN DRIVE": the rollout starts at rest, so nothing but the
-    ## controller's own bytes can carry the bug out. An inherited 3 m/s outward
-    ## velocity is not something a rim guard can be asked to undo.
+    ## controller's own bytes can carry the bug out. An inherited velocity next
+    ## to the rim is not something any controller can be asked to undo — not
+    ## even a tangential one, because moving tangentially at radius r puts you
+    ## at sqrt(r² + v²) > r. Measured: 671 of these 10 000 rollouts cross the
+    ## rim if the random velocity is kept, and 25 still cross with the OUTWARD
+    ## component projected out. The velocity case is asserted below, from the
+    ## inner half of the ring, where the guard does have room to work.
     sim.bodies[0].vx = 0
     sim.bodies[0].vy = 0
     var intent = randomIntent(rng)
@@ -164,6 +169,54 @@ block:
       inc crossings
   check crossings == 0,
     &"{crossings} of 10 000 rollouts at aggression <= 9 crossed the rim"
+
+block:
+  ## …and it holds from a MOVING start too, wherever the guard has room to
+  ## work: any legal state in the inner half of the ring, with a random
+  ## inherited velocity up to 2.9 m/s in any direction (`randomBody`'s full
+  ## range), driven by any stance at aggression <= 9. This is the strongest
+  ## form of the design's "from any legal state" that is achievable at all —
+  ## see the note above for what happens next to the rim.
+  var rng = initRand(0x4C71)
+  var crossings = 0
+  for _ in 0 ..< 10_000:
+    var sim = playingSim()
+    sim.config.ringShrinkPerTickUm = 0
+    var ctl = initControlState()
+    sim.bodies[0] = randomBody(rng, sim.ringRadiusNow div 2)
+    sim.bodies[0].downTicks = 0
+    sim.bodies[0].tipMilli = 0
+    var intent = randomIntent(rng)
+    intent.aggression = rng.rand(0 .. 9)
+    var cmds = newSeq[uint8](BodyCount)
+    var crossed = false
+    for _ in 0 ..< 240:
+      sim.bodies[1].px = RingCentreX
+      sim.bodies[1].py = RingCentreY
+      sim.bodies[1].vx = 0
+      sim.bodies[1].vy = 0
+      sim.bodies[1].tipMilli = 0
+      sim.bodies[1].knockdowns = 0
+      cmds[sim.inputIndexOfBody(0)] =
+        driveCommand(ctl, sim, 0, intent, sim.tickCount)
+      cmds[sim.inputIndexOfBody(1)] = 0
+      let before = sim.bodies[0]
+      sim.phase = Playing
+      sim.roundTick = 0
+      sim.roundLog.setLen(0)
+      sim.roundsWon = [0'i32, 0'i32]
+      sim.step(cmds)
+      if sim.bodies[0].outsideRing(sim.ringRadiusNow):
+        crossed = true
+        break
+      if before.px == sim.bodies[0].px and before.py == sim.bodies[0].py and
+          sim.bodies[0].speedUm() == 0:
+        break
+    if crossed:
+      inc crossings
+  check crossings == 0,
+    &"{crossings} of 10 000 MOVING rollouts from the inner half of the ring " &
+    "at aggression <= 9 crossed the rim"
 
 block:
   ## …and at aggression 10 it CAN: the guard is halved, which is the documented
@@ -329,12 +382,17 @@ block:
     previous = now
     if now == 0 and stopped < 0:
       stopped = tick
-  ## The window is arithmetic, not a round number: a braced (`low`) bug sheds
-  ## FricNumPer1024[low] = 40/1024 per tick, so falling from the `high` clamp to
-  ## the rest floor takes ln(165000 / 64) / 0.0391 = 197 ticks. The design
-  ## note's "within 120 ticks" is the right claim against the wrong constant.
-  check stopped >= 0 and stopped <= 240,
-    &"a brace did not reach |v| = 0 within 240 ticks (reached {previous})"
+  ## MEASURED, not estimated. Friction alone would take
+  ## ln(165000 / 64) / 0.0391 = 197 ticks (a braced `low` bug sheds
+  ## FricNumPer1024[low] = 40/1024 a tick), but a brace also DRIVES: its goal
+  ## bearing is the other bug, so its own thrust works against the residual
+  ## velocity and the standstill arrives at tick 121 — one tick outside the
+  ## design note's "within 120 ticks", not the 197 an earlier reading of this
+  ## test assumed. The bound is the measurement plus ~9 %, so a slower brake is
+  ## a failure rather than a shrug.
+  check stopped >= 0 and stopped <= 132,
+    &"a brace reached |v| = 0 at tick {stopped}, want <= 132 (measured 121; " &
+    &"final speed {previous})"
 
 
 if failures > 0:
