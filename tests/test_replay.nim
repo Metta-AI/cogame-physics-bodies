@@ -267,6 +267,7 @@ block:
 
   var registers, intents, rounds, results = 0
   var intentTurns: seq[int]
+  var roundTicks: seq[int]
   for chat in data.chats:
     if chat.message.len == 0 or chat.message[0] != '{':
       continue
@@ -284,6 +285,7 @@ block:
         "a recorded say is not valid UTF-8"
     of "round":
       inc rounds
+      roundTicks.add int(chat.time)      ## replay milliseconds
     of "result":
       inc results
     else:
@@ -294,6 +296,22 @@ block:
   check rounds == episode.sim.roundLog.len,
     &"the stream has {rounds} round records for " &
     $episode.sim.roundLog.len & " completed rounds"
+  ## Each `round` record rides the tick ITS ROUND ended on, not the episode's
+  ## last tick (r1 review N12). They are forensic records — playback re-derives
+  ## rounds inside `bankRound` — so a timestamp that does not locate the round
+  ## makes them useless to tools/replay_summary.py.
+  if roundTicks.len > 1:
+    var ascending = true
+    for i in 1 ..< roundTicks.len:
+      if roundTicks[i] <= roundTicks[i - 1]:
+        ascending = false
+    check ascending,
+      &"the round records are stamped {roundTicks} ms — they must ride the " &
+      "tick each round ended on, in order"
+    check roundTicks[0] < int(tickTime(episode.ticks)),
+      &"the first round record is stamped at {roundTicks[0]} ms of " &
+      &"{int(tickTime(episode.ticks))}: every record was written at the " &
+      "episode's LAST tick"
   ## Two intent records per turn.
   var perTurn = initTable[int, int]()
   for turn in intentTurns:

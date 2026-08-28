@@ -598,6 +598,21 @@ proc runServerLoop*(host: string = sim.DefaultHost,
     quitAfterFrame = false
     cmds = newSeq[uint8](BodyCount)
     reportedNoShow = false
+    roundsRecorded = 0
+
+  ## Each `round` record rides the tick its round ENDED on. These records are
+  ## FORENSIC — playback re-derives every round inside `bankRound` and
+  ## `applyReplayEvents` refuses to re-apply a `round` record, so nothing here
+  ## touches the hash chain — and a forensic record stamped with the episode's
+  ## last tick cannot locate the round it describes, which is what
+  ## tools/replay_summary.py reads them for (r1 review N12).
+  template flushRoundRecords() =
+    while roundsRecorded < sim.roundLog.len:
+      let entry = sim.roundLog[roundsRecorded]
+      replayWriter.writeChat(tickTime(sim.tickCount), 0,
+        roundRecord(int(entry.round), int(entry.winner), $entry.reason,
+          int(entry.ticks), entry.knockdowns))
+      inc roundsRecorded
 
   while true:
     var
@@ -626,6 +641,7 @@ proc runServerLoop*(host: string = sim.DefaultHost,
       ## chain and playback can render the endcard rather than stopping short.
       sim.step(cmds)
       replayWriter.writeHash(uint32(sim.tickCount), sim.gameHash())
+      flushRoundRecords()
       quitAfterFrame = true
 
     {.gcsafe.}:
@@ -819,6 +835,7 @@ proc runServerLoop*(host: string = sim.DefaultHost,
           quitAfterFrame = true
           break
         replayWriter.writeHash(uint32(sim.tickCount), sim.gameHash())
+        flushRoundRecords()
         if sim.collectEvents:
           for event in sim.events:
             collectedEvents.add event
@@ -916,10 +933,9 @@ proc runServerLoop*(host: string = sim.DefaultHost,
       ## SELF-SUFFICIENT. Never applied as a shout at playback (a leading '{'
       ## marks a control record), so the hash chain is untouched.
       replayWriter.writeChat(tickTime(sim.tickCount), 0, resultRecord(sim))
-      for entry in sim.roundLog:
-        replayWriter.writeChat(tickTime(sim.tickCount), 0,
-          roundRecord(int(entry.round), int(entry.winner), $entry.reason,
-            int(entry.ticks), entry.knockdowns))
+      ## Anything the loop above could not flush — a round banked by the very
+      ## step that then faulted — still gets exactly one record.
+      flushRoundRecords()
       if saveReplayPath.len > 0:
         echo "Writing replay file: ", saveReplayPath
       replayWriter.closeReplayWriter()
