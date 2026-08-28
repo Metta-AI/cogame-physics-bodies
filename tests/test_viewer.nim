@@ -20,6 +20,30 @@ let
   worker = readFile(repoFile("replay-viewer/static_replay_worker.js"))
   viewerConfig = readFile(repoFile("replay-viewer/config.nims"))
 
+## `page` with every `<!-- ... -->` region removed. An UNTERMINATED comment is
+## the failure mode that motivated this: surgically deleting the inherited
+## `#fpv` markup by line range ate the closing `-->` of the comment above it,
+## so the comment ran on and swallowed `#bannerlane`, `#killfeed` and
+## `#transport`. Every one of those ids was still present as TEXT, so a plain
+## `contains` check passed while the browser rendered no transport at all and
+## `renderTransport` died on `$('transport').classList`. Element checks below
+## therefore run against `markup`, not `page`.
+proc stripComments(html: string): string =
+  var i = 0
+  while true:
+    let open = html.find("<!--", i)
+    if open < 0:
+      result.add html[i .. ^1]
+      return
+    result.add html[i ..< open]
+    let close = html.find("-->", open + 4)
+    doAssert close >= 0,
+      "replay_broadcast.html has an UNTERMINATED <!-- comment starting at " &
+      "byte " & $open & " — it swallows every element after it"
+    i = close + 3
+
+let markup = stripComments(page)
+
 ## The starter's copies, if the read-only mount is available. In CI it is not,
 ## so the byte-identity claim is pinned by SHA-256 instead.
 const ChromeCommonSha =
@@ -65,10 +89,29 @@ block:
              "momentum", "lulls", "tick-clock", "ffwd-chip", "ffwd-mini",
              "win-chip", "endcard", "ec-headline", "ec-how", "ec-wincond",
              "ec-teams", "ec-replay", "status"]:
-    check page.contains("id=\"" & id & "\""),
+    check markup.contains("id=\"" & id & "\""),
       &"replay_broadcast.html lost the inherited element #{id}"
   check page.contains(".tiny"),
     "replay_broadcast.html lost the .tiny (360 px) block"
+
+# --- every element the INHERITED chrome dereferences must exist --------
+# chrome_common.js is byte-identical and unconditionally does
+# `$('transport').classList...` on the first frame. Any id it looks up that the
+# page does not declare is a null dereference in the browser, not a no-op.
+block:
+  var i = 0
+  while true:
+    let hit = chrome.find("$('", i)
+    if hit < 0: break
+    let close = chrome.find("')", hit + 3)
+    if close < 0: break
+    let id = chrome[hit + 3 ..< close]
+    i = close + 2
+    if id.len == 0 or not id.allCharsInSet({'a'..'z', 'A'..'Z', '0'..'9', '-'}):
+      continue
+    check markup.contains("id=\"" & id & "\""),
+      &"chrome_common.js looks up #{id} but replay_broadcast.html does not " &
+      "declare it — the inherited chrome will null-dereference on frame 1"
 
 # --- the REMOVED elements, exactly these ------------------------------
 block:

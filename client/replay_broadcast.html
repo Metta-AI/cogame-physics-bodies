@@ -1191,11 +1191,9 @@ body[data-embed] #board { top: 0; height: 100%; }
       <div class="plates" id="plates-r"></div>
     </div>
     <div id="mmwarn">Replay hash mismatch — showing recorded inputs</div>
-    <!-- First-person picture-in-picture: the selected seat's Wolfenstein-style
-         raycast view, shown only while a player is in POV. A window into what
-         that soldier sees down the barrel, riding alongside their top-down fog.
-         Its own inset tactical map (bottom-left) shows the seat's position and
-         vision cone against the WHOLE un-fogged arena, so the viewer always
+    <!-- #fpv (the first-person picture-in-picture) and #povBadge are removed:
+         a sumo ring is a fixed, fully-visible arena with no fog of war, so
+         there is nothing a per-seat lens could show that the board does not. -->
     <div id="bannerlane"></div>
     <div id="killfeed"></div>
 
