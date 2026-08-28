@@ -184,6 +184,34 @@ for kind in ["wide", "prose"]:
         &"{plate.h} on {found.viewW}x{found.viewH}, ink x {ink.x0}..{ink.x1} " &
         &"y {ink.y0}..{ink.y1} ({ink.count} px)"
 
+# --- the band's DWELL: 2.5 s, then the line is gone --------------------
+block:
+  ## §Readouts 6 draws a line for 2.5 s. The records live in a ring buffer of
+  ## `2 * BodyCount`, so before r1 review N14 a remark stayed on the board
+  ## until another one replaced it. The plate is placed while the line is
+  ## young and gone once it is `BubbleHoldTicks` old — and the reserved band
+  ## does not move either way, so nothing on the board jumps.
+  let say = sayFor("prose")
+  var sim = speakingSim(say)
+  sim.tickCount = 24 * max(1, sim.config.turnTicks)      ## the turn boundary
+  var freshState = initGlobalViewerState()
+  var freshNext: GlobalViewerState
+  let fresh = platesOf(sim.buildSpriteProtocolUpdates(freshState, freshNext))
+  check fresh.plates.len == BodyCount,
+    &"a line spoken this turn placed {fresh.plates.len} plates, want " &
+    $BodyCount
+
+  sim.tickCount += BubbleHoldTicks + 1
+  var staleState = initGlobalViewerState()
+  var staleNext: GlobalViewerState
+  let stale = platesOf(sim.buildSpriteProtocolUpdates(staleState, staleNext))
+  check stale.plates.len == 0,
+    &"a line {BubbleHoldTicks + 1} ticks old still placed " &
+    &"{stale.plates.len} plates — it must be drawn for " &
+    &"{BubbleHoldTicks} ticks (2.5 s) and then go away"
+  check stale.viewW == fresh.viewW and stale.viewH == fresh.viewH,
+    "the board viewport moved when the line expired"
+
 if failures > 0:
   quit("test_text_bounds: " & $failures & " failure(s)", 1)
 echo "test_text_bounds: ok"
