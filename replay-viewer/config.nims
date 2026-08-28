@@ -39,17 +39,22 @@ switch("threads", "off")
 # own globals, which is how oversized replays died with an EMPTY
 # bodies_error_len(). Aborting keeps linear memory intact, and the page reads
 # bodies_stage_ptr/len afterwards to report what the runtime was doing.
+# client/art is preloaded (below) because the RENDERER reads it at runtime:
+# global.nim:447 opens client/art/walls/wall_v.jpg while baking the board plate,
+# and under emscripten that path has to exist in MEMFS or the bake raises inside
+# the worker with no other symptom than a board that never draws. It is the one
+# link-flag change beyond the two renames ctf's file needed (r1 review N16).
+#
+# NOTHING INSIDE THE STRING BELOW IS A COMMENT. It is one emcc command line
+# with the newlines replaced by spaces, so a `#` line inside it is passed
+# THROUGH to the linker and swallows every flag after it on the same line:
+# EXPORTED_FUNCTIONS went missing that way and the page died with
+# "Module._malloc is not a function" (CI run 33176949006).
 switch(
   "passL",
   (&"""
   -o {distDir / "bodies_replay.js"}
   --preload-file {rootDir / "data"}@data
-  # client/art is preloaded because the RENDERER reads it at runtime:
-  # global.nim:447 opens client/art/walls/wall_v.jpg while baking the board
-  # plate, and under emscripten that path has to exist in MEMFS or the bake
-  # raises inside the worker with no other symptom than a board that never
-  # draws. It is the one link-flag change beyond the two renames ctf's file
-  # needed (r1 review N16).
   --preload-file {rootDir / "client" / "art"}@client/art
   -O2
   -s ALLOW_MEMORY_GROWTH
