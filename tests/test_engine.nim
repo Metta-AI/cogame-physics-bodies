@@ -112,15 +112,19 @@ proc freshEngine(sim: SimServer, prompts = true): DecisionEngine =
 type GameServerArgs = object
   cfg: GameConfig
   runtime: RuntimeConfig
+  port: int
 
-var gameThread: Thread[GameServerArgs]
+var
+  gameThread: Thread[GameServerArgs]
+  gameThread2: Thread[GameServerArgs]
 
 proc gameServeProc(args: GameServerArgs) {.thread.} =
   ## The REAL game server loop, in process, so the no-show declaration below is
   ## made against the actual lobby path rather than a paraphrase of it.
   {.gcsafe.}:
     try:
-      runServerLoop("127.0.0.1", 8794, args.cfg, "", "", "", args.runtime)
+      runServerLoop("127.0.0.1", args.port, args.cfg, "", "", "",
+        args.runtime)
     except CatchableError as error:
       echo "game server loop ended: ", error.msg
 
@@ -446,7 +450,7 @@ block:
   cfg.startWaitTicks = 12
   cfg.gameOverTicks = 12
   cfg.fastMode = true
-  createThread(gameThread, gameServeProc, GameServerArgs(cfg: cfg,
+  createThread(gameThread, gameServeProc, GameServerArgs(cfg: cfg, port: 8794,
     runtime: RuntimeConfig(host: "127.0.0.1", port: 8794,
       resultsUri: "file://" & resultsPath)))
 
@@ -502,6 +506,103 @@ block:
   let source = readFile(repoFile("src/bodies/server.nim"))
   check source.contains("never registered; driving "),
     "server.nim no longer logs the no-show loudly"
+  removeDir(workDir)
+
+# --- SLOT 1 CONNECTS FIRST: held, not thrown away --------------------
+block:
+  ## The bug that cost 0.1.1 and 0.1.2 their hosted smoke. Joins are
+  ## slot-sequential, and PROTOCOL.md promises a seat whose slot is not the next
+  ## open one "is not admitted until the lower slots have joined". The admit
+  ## loop instead handed that refusal to `except BodiesError`, which latched
+  ## `playerIndices[socket] = -1` — PERMANENT. Slot 1 was discarded while still
+  ## connected and still acking frames, the lobby waited out its whole budget
+  ## for it, and the hosted runner failed the episode "player slot 1 never
+  ## joined the lobby". It never reproduced locally because the loop walked a
+  ## Table, so WHICH pending socket it reached first was unspecified: 1 of 5
+  ## hosted episodes failed at 0.1.1, then 3 of 5 at 0.1.2.
+  ##
+  ## Connecting slot 1 FIRST makes it deterministic: with only slot 1 pending,
+  ## the old code refused and latched it on the very next iteration.
+  let
+    workDir = tempPath("engine-slotorder")
+    failurePath = workDir / "player-failure.json"
+    resultsPath = workDir / "slotorder-results.json"
+  createDir(workDir)
+  putEnv("COGAME_PLAYER_FAILURE_URI", "file://" & failurePath)
+  var cfg = defaultGameConfig()
+  cfg.seed = 5104773
+  cfg.players = @[PlayerConfig(name: "BUG-1"), PlayerConfig(name: "BUG-2")]
+  cfg.maxGames = 1
+  cfg.maxRounds = 1
+  cfg.roundsToClinch = 1
+  cfg.roundTicks = 48
+  cfg.resetTicks = 12
+  cfg.maxTicks = 240
+  cfg.turnTicks = 24
+  cfg.turnSpacingMs = 0
+  cfg.wallClockBudgetSeconds = 120
+  cfg.lobbyJoinTimeoutTicks = 168     ## 7 s — long enough for both connects
+  cfg.startWaitTicks = 12
+  cfg.gameOverTicks = 12
+  cfg.fastMode = true
+  createThread(gameThread2, gameServeProc, GameServerArgs(cfg: cfg, port: 8795,
+    runtime: RuntimeConfig(host: "127.0.0.1", port: 8795,
+      resultsUri: "file://" & resultsPath)))
+
+  proc connectSeat(slot: int, label: string): whisky.WebSocket =
+    result = nil
+    for _ in 0 ..< 60:
+      try:
+        result = whisky.newWebSocket(
+          "ws://127.0.0.1:8795/player?slot=" & $slot)
+        break
+      except CatchableError:
+        sleep(100)
+    if result != nil:
+      whisky.send(result, blobFromSpriteChat($(%*{
+        "type": "register", "prompt": "", "scripted": "pusher",
+        "policy": label})), whisky.BinaryMessage)
+
+  ## SLOT 1 FIRST, then slot 0 — with a real gap, so the admit loop sees slot 1
+  ## pending ALONE for a dozen frames. That is the shape the old code threw the
+  ## seat away on.
+  let high = connectSeat(1, "test-slotorder-1")
+  check high != nil, "seat 1 could not connect to the in-process server"
+  sleep(700)
+  let low = connectSeat(0, "test-slotorder-0")
+  check low != nil, "seat 0 could not connect to the in-process server"
+  let deadline = epochTime() + 120.0
+  while epochTime() < deadline and not fileExists(resultsPath):
+    for socket in [low, high]:
+      if socket == nil: continue
+      try:
+        if whisky.receiveMessage(socket, timeout = 120).isSome:
+          whisky.send(socket, blobFromSpriteReady(), whisky.BinaryMessage)
+      except CatchableError:
+        discard
+  for socket in [low, high]:
+    if socket != nil:
+      try: whisky.close(socket) except CatchableError: discard
+  joinThread(gameThread2)
+
+  check not fileExists(failurePath),
+    "slot 1 connecting BEFORE slot 0 was declared a no-show — a seat whose " &
+    "slot is not the next open one must be HELD until the lower slots join, " &
+    "not refused and latched"
+  check fileExists(resultsPath),
+    "an out-of-order two-seat lobby wrote no results"
+  if fileExists(resultsPath):
+    let results = parseJson(readFile(resultsPath))
+    check results["reason"].getStr() == ReasonComplete,
+      &"""an out-of-order lobby ended {results["reason"].getStr()}, want """ &
+      "complete"
+    check results["rounds"].getInt() >= 1,
+      "an out-of-order lobby banked no rounds — the match must be PLAYED"
+    ## Both seats registered, so neither policyKind may read `scripted` by
+    ## default and both names must be the real ones.
+    check results["names"][0].getStr() == "test-slotorder-0" or
+        results["names"][0].getStr() == "BUG-1",
+      "seat 0's name was not recorded: " & results["names"][0].getStr()
   removeDir(workDir)
 
 server.close()

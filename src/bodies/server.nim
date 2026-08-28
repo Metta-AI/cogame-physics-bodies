@@ -27,7 +27,8 @@
 ##    deadline AFTER the player pods start, and a short episode can already be
 ##    gone).
 
-import std/[json, locks, monotimes, nativesockets, os, strutils, tables, times]
+import std/[algorithm, json, locks, monotimes, nativesockets, os, strutils,
+            tables, times]
 import bitworld/client as bitworldClient
 import bitworld/runtime
 import bitworld/spriteprotocol
@@ -677,12 +678,26 @@ proc runServerLoop*(host: string = sim.DefaultHost,
             " with pusher"
 
         if not replayLoaded:
-          ## Admit pending joins in slot order.
+          ## Admit pending joins in slot order — ACTUALLY in slot order. This
+          ## walks a Table, whose iteration order is unspecified, so when both
+          ## sockets are pending on the same server iteration the loop could
+          ## reach slot 1 first; `addPlayer` then refused it with "slot 1 cannot
+          ## join before slot 0" and the `except` below latched -1, which is
+          ## PERMANENT. The seat was thrown away and the lobby then waited out
+          ## its whole budget for a socket that was still connected and still
+          ## sending Ready packets. Non-deterministic by construction, so it
+          ## never showed up locally (the two seats connect a beat apart and
+          ## each is admitted alone) and cost 0.1.1 and 0.1.2 their hosted
+          ## smoke: 1 of 5, then 3 of 5, episodes failed
+          ## "player slot 1 never joined the lobby".
           var pending: seq[WebSocket] = @[]
           for websocket in appState.playerIndices.keys:
             if websocket.isPlayerWebSocket() and
                 appState.playerIndices[websocket] == 0x7fffffff:
               pending.add websocket
+          pending.sort(proc (a, b: WebSocket): int =
+            cmp(appState.playerSlots.getOrDefault(a, -1),
+                appState.playerSlots.getOrDefault(b, -1)))
           for websocket in pending:
             let
               address = appState.playerAddresses.getOrDefault(websocket,
@@ -691,6 +706,14 @@ proc runServerLoop*(host: string = sim.DefaultHost,
               token = appState.playerTokens.getOrDefault(websocket, "")
             if sim.phase != Lobby or not sim.canAddPlayer():
               appState.playerIndices[websocket] = -1
+              continue
+            ## A slot that is not the next open one is HELD, not refused, which
+            ## is what PROTOCOL.md promises: "a seat whose slot is not the next
+            ## open one is not admitted until the lower slots have joined". It
+            ## stays at 0x7fffffff and is retried next iteration. Only a
+            ## genuinely fatal refusal (illegal slot, token mismatch, duplicate
+            ## address, full match) latches -1.
+            if slot >= 0 and slot != sim.nextPlayerSlot():
               continue
             try:
               let index = sim.addPlayer(address, slot, token)
