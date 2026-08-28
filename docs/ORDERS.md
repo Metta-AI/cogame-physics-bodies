@@ -73,16 +73,24 @@ retry and then the scripted fallback fire.
    `bearing_deg` from where you stand.
 2. **Goal bearing** from the stance (see the table above).
 3. **The rim guard, always, every stance.** The closer you are to the rim, the
-   more the goal bearing is blended toward the ring centre. **At
-   `aggression: 10` the guard is HALVED** — you may push yourself out. That is
-   the trade, and it is the only way to order an all-in push.
+   more the goal bearing is blended toward the ring centre. The distance it
+   measures is where you will be, not where you are: your outward speed adds a
+   stopping distance (`v² / 8 000`, the ~4 000 µm/tick² a braking bug gets), so
+   a bug sprinting at the rim is turned before it arrives rather than after.
+   **At `aggression: 10` the guard is HALVED** — you may push yourself out.
+   That is the trade, and it is the only way to order an all-in push.
 4. **Posture.** `low`/`even`/`high` are taken literally. `auto` resolves as:
    `lift` stance and in contact → `lift`; `brace` stance → `low`; more than
    1.20 m apart → `high`; in contact → `low`; else `even`. The rim guard
    overrides to `low` when it is dominating.
 5. **Effort**, continuous then duty-cycled: `3 × aggression / 10`, times 0.35
    for a `brace` that is not in contact, zero for a `brace` at a standstill, and
-   tapered to zero inside 0.30 m of the goal for `centre` / `retreat`.
+   tapered to zero inside 0.30 m of the goal for `centre` / `retreat`. **Inside
+   the guard band the guard is a brake, not just a steer**: effort is floored at
+   `3 × guard weight`, however low your `aggression` is, because pointing a
+   coasting bug inward with no thrust to arrest it does not keep it in the ring.
+   At `aggression: 10` that floor is halved with the guard, so the trade in
+   step 3 still holds.
 6. **Quantise** to the nearest of the 16 drive bearings and pack the byte.
 
 ## Two worked prompts
