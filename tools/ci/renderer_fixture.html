@@ -11,17 +11,33 @@
 
   This fixture loads THE REAL index.html of the built bundle in an iframe. It
   never re-implements the drawing (cogame-particle-worlds 46cf69d): it fetches
-  the page, splices in a shim for ONLY the wasm entry (window.BodiesStaticReplay)
-  so the page boots with no replay and no Worker, and then drives the page's own
-  chrome — scorebug, feed, endcard, relayout() and the appended game block —
-  with a full-cap 48-rune `say` and 160-rune `note` on BOTH seats at once, at
-  360, 620 and 1280 px.
+  the page, splices a shim OVER the wasm entry's own script tag
+  (`<script src="./static_replay.js">`, the BROADCAST_CORE splice) so the page
+  boots with no replay and no Worker, and then drives the page's own chrome —
+  scorebug, feed, endcard, relayout() and the appended game block — with a
+  full-cap 48-rune `say` and 160-rune `note` on BOTH seats at once, at 360, 620
+  and 1280 px.
+
+  The shim REPLACES that script rather than being spliced into <head>: the
+  bundle's index.html loads static_replay.js from the BODY, so a shim in the
+  head is overwritten by the real `window.BodiesStaticReplay` and every iframe
+  dies with "Missing required replay URL" — three iframes that render nothing
+  while the fixture still reports a pass (r1 review N1).
 
   It is loaded through `tools/ci/viewer_smoke.mjs --url … --strict-text-bounds`,
   which hooks CanvasRenderingContext2D.fillText/strokeText and fails the job if
-  any string was NEVER drawn inside its canvas. The fixture sets
-  data-replay-loaded on <html> once all three widths have booted, and
-  data-replay-error if its own self-check fails.
+  any string was NEVER drawn inside its canvas. NOTHING in this game draws text
+  through fillText (`grep -c fillText client/*.js client/*.html` is 0 in every
+  file): the board's speech band is rasterised by pixie in Nim and blitted as
+  sprite pixels (asserted by tests/test_text_bounds.nim), and every other
+  string is DOM. So `canvas_text.total` is structurally 0 here, and the DOM is
+  MEASURED instead — this fixture reads back the box of every element carrying
+  a full-cap string at all three widths and fails if one is empty, clipped by
+  its scroll box, ellipsised, or outside the frame.
+
+  The fixture sets data-replay-loaded on <html> once all three widths have
+  booted AND that measurement passed, and data-replay-error naming the width,
+  the element and the box if it did not.
 -->
 <html lang="en">
 <head>
@@ -110,8 +126,35 @@
     '      contacts: contacts, effortPct: eff, llmTurns: 48,',
     '      fallbackTurns: fb };',
     '  }',
+    '  // Both cap strings, on BOTH seats. The page renders `say || note`, so',
+    '  // the 160-rune NOTE only reaches the DOM when a seat says nothing:',
+    '  // both branches are driven, one turn apart, because MAX_FEED is 4 rows',
+    '  // and the four rows would evict each other inside one frame.',
+    '  function intent(turn, seat, say) {',
+    '    return {',
+    '      turn: turn, seat: seat, alias: "BUG-" + (seat + 1), body: seat,',
+    '      source: "llm", stance: seat === 0 ? "charge" : "lift", aim: "foe",',
+    '      bearing_deg: 0, aggression: 10 - seat, lead_ticks: 2 - seat,',
+    '      posture_bias: seat === 0 ? "auto" : "low", circle_dir: 1 - 2 * seat,',
+    '      note: window.__pbNote, say: say',
+    '    };',
+    '  }',
+    '  function intentsFor(t) {',
+    '    var records = [intent(24, 0, window.__pbSay),',
+    '                   intent(24, 1, window.__pbSay)];',
+    '    if (t >= 20) {',
+    '      records.push(intent(25, 0, ""));',
+    '      records.push(intent(25, 1, ""));',
+    '    }',
+    '    return records;',
+    '  }',
     '  function frame(t) {',
-    '    var over = t > 40;',
+    '    var over = t > 80;',
+    '    // The momentum series, the beat timeline and the lull spans ride ONE',
+    '    // frame in the real stream (replay_runtime.nim `sendLead`). Repeating',
+    '    // them every frame re-pushes their feed rows at 16 Hz and evicts the',
+    '    // intent rows this fixture exists to measure.',
+    '    var first = t <= 2;',
     '    return {',
     '      t: t, mt: 2160, ph: over ? "gameover" : "playing", lob: 0,',
     '      pl: true, sp: 1, mx: 2160, st: 0, lp: true, sk: false,',
@@ -155,19 +198,10 @@
     '          impulse: 0.06, lift: true },',
     '        score: { bug1: 2.75, bug2: -2.75 }',
     '      },',
-    '      intents: [',
-    '        { turn: 24, seat: 0, alias: "BUG-1", body: 0, source: "llm",',
-    '          stance: "charge", aim: "foe", bearing_deg: 0,',
-    '          aggression: 10, posture_bias: "auto", lead_ticks: 2,',
-    '          circle_dir: 1, note: window.__pbNote, say: window.__pbSay },',
-    '        { turn: 24, seat: 1, alias: "BUG-2", body: 1, source: "llm",',
-    '          stance: "lift", aim: "foe", bearing_deg: 0, aggression: 9,',
-    '          posture_bias: "low", lead_ticks: 0, circle_dir: -1,',
-    '          note: window.__pbNote, say: window.__pbSay }',
-    '      ],',
-    '      lead: { teams: ["bug1", "bug2"],',
-    '        pts: [[0, 0, 0], [213, 1250, 0], [900, 2500, 1000]] },',
-    '      beats: [',
+    '      intents: intentsFor(t),',
+    '      lead: first ? { teams: ["bug1", "bug2"],',
+    '        pts: [[0, 0, 0], [213, 1250, 0], [900, 2500, 1000]] } : undefined,',
+    '      beats: first ? [',
     '        { t: 213, k: "ring_out", body: 1, team: "bug2", winner: 0,',
     '          radius: 2.31 },',
     '        { t: 400, k: "knockdown", body: 1, team: "bug2",',
@@ -178,8 +212,8 @@
     '          alias: "BUG-1" },',
     '        { t: 1608, k: "gameover", winner: "bug1", draw: false,',
     '          tl: false, endRule: "match_won", reason: "complete" }',
-    '      ],',
-    '      lulls: [[430, 590]],',
+    '      ] : undefined,',
+    '      lulls: first ? [[430, 590]] : undefined,',
     '      over: over ? {',
     '        winner: "bug1", draw: false, timeLimit: false,',
     '        endRule: "match_won", reason: "complete", score: 2.75,',
@@ -204,7 +238,7 @@
     '            tick += 2;',
     '            if (config.onText) config.onText(JSON.stringify(frame(tick)));',
     '            if (tick === 2 && config.onFirstFrame) config.onFirstFrame();',
-    '            if (tick > 60 && timer) { clearInterval(timer); timer = null; }',
+    '            if (tick > 120 && timer) { clearInterval(timer); timer = null; }',
     '          }, 60);',
     '        },',
     '        stop: function () { if (timer) clearInterval(timer); },',
@@ -230,8 +264,23 @@
     '})();'
   ].join('\n');
 
+  var WIDTHS = ['w360', 'w620', 'w1280'];
+  // The wasm entry's own script tag in the built index.html (the BROADCAST_CORE
+  // splice, Dockerfile.replay-viewer). The shim REPLACES it: it is loaded from
+  // the BODY, so a shim spliced into <head> is overwritten by the real
+  // `window.BodiesStaticReplay` and the page dies on "Missing required replay
+  // URL" (r1 review N1).
+  var CORE_TAG = '<script src="./static_replay.js"><\/script>';
+
   var booted = 0;
   var failed = false;
+  // Per `<width>:<say|note>`: the box of the last poll that found the string
+  // drawn wholly inside its frame, and the reason of the last poll that did
+  // not. The gate is the harness's own rule (viewer_smoke.mjs `never_inside`):
+  // a row slides in from off-frame, so being outside on SOME poll is normal
+  // and a string that is never once inside is the defect.
+  var inside = {};
+  var offside = {};
 
   function fail(message) {
     if (failed) return;
@@ -239,6 +288,138 @@
     document.getElementById('verdict').textContent = 'FIXTURE FAILED: ' +
       message;
     document.documentElement.setAttribute('data-replay-error', message);
+  }
+
+  // ---- the measurement --------------------------------------------------
+  // A canvas takes a draw at a negative coordinate without complaint and so
+  // does the DOM: an overflowing nowrap row is simply not on screen. Nothing
+  // in this game draws text through fillText, so `canvas_text` cannot see any
+  // of this (see the header) and the boxes are read back directly instead.
+  // For every element that carries a full-cap string: it must have a non-empty
+  // box, that box must lie inside the frame and inside every scroll box it
+  // sits in, and it must not be cut with an ellipsis -- an ellipsis is a
+  // design choice for a nameplate and a defect for a sentence.
+  function clipBox(el, win) {
+    var box = { left: 0, top: 0, right: win.innerWidth, bottom: win.innerHeight };
+    var node = el.parentElement;
+    while (node) {
+      var style = win.getComputedStyle(node);
+      if (style.overflowX !== 'visible' || style.overflowY !== 'visible') {
+        var r = node.getBoundingClientRect();
+        box.left = Math.max(box.left, r.left);
+        box.top = Math.max(box.top, r.top);
+        box.right = Math.min(box.right, r.right);
+        box.bottom = Math.min(box.bottom, r.bottom);
+      }
+      node = node.parentElement;
+    }
+    return box;
+  }
+
+  function measure(id) {
+    var frame = document.getElementById(id);
+    var doc = frame.contentDocument;
+    var win = frame.contentWindow;
+    if (!doc || !win) return;
+    var attr = doc.documentElement.getAttribute('data-replay-error');
+    if (attr) {
+      fail(id + ': the page reported ' + JSON.stringify(attr));
+      return;
+    }
+    var nodes = doc.querySelectorAll('body *');
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      if (el.children.length) continue;
+      var text = el.textContent || '';
+      var kind = text.indexOf(SAY) >= 0 ? 'say'
+        : (text.indexOf(NOTE) >= 0 ? 'note' : '');
+      if (!kind) continue;
+      var style = win.getComputedStyle(el);
+      if (style.display === 'none' || style.visibility === 'hidden' ||
+          Number(style.opacity) === 0 || el.offsetParent === null) {
+        continue;              // between rows: not drawn on this poll
+      }
+      var key = id + ':' + kind;
+      var r = el.getBoundingClientRect();
+      var box = Math.round(r.left) + ',' + Math.round(r.top) + ' ' +
+        Math.round(r.width) + 'x' + Math.round(r.height);
+      var where = id + ' ' + (el.id ? '#' + el.id : el.tagName.toLowerCase() +
+        (el.className ? '.' + String(el.className).split(' ').join('.') : ''));
+      var clip = clipBox(el, win);
+      var reason = '';
+      if (r.width < 1 || r.height < 1) {
+        reason = where + ' draws the ' + kind + ' in an EMPTY box (' + box + ')';
+      } else if (r.left < clip.left - 0.5 || r.top < clip.top - 0.5 ||
+          r.right > clip.right + 0.5 || r.bottom > clip.bottom + 0.5) {
+        reason = where + ' draws the ' + kind + ' at ' + box +
+          ', outside its frame (' + Math.round(clip.left) + ',' +
+          Math.round(clip.top) + ' .. ' + Math.round(clip.right) + ',' +
+          Math.round(clip.bottom) + ')';
+      } else if (el.scrollWidth > el.clientWidth + 1 && el.clientWidth > 0) {
+        reason = where + ' clips the ' + kind + ': scrollWidth ' +
+          el.scrollWidth + ' > clientWidth ' + el.clientWidth;
+      } else if (style.textOverflow === 'ellipsis' &&
+          el.scrollWidth > el.clientWidth && el.clientWidth > 0) {
+        reason = where + ' ELLIPSISES the ' + kind +
+          ' -- widen the band, do not shorten the sentence';
+      }
+      if (reason) {
+        offside[key] = reason;
+      } else {
+        inside[key] = where + ' @ ' + box;
+      }
+    }
+  }
+
+  function pending() {
+    var missing = [];
+    for (var i = 0; i < WIDTHS.length; i++) {
+      for (var k = 0; k < 2; k++) {
+        var key = WIDTHS[i] + ':' + ['say', 'note'][k];
+        if (!inside[key]) missing.push(key);
+      }
+    }
+    return missing;
+  }
+
+  var polls = 0;
+  function poll() {
+    if (failed) return;
+    polls += 1;
+    for (var i = 0; i < WIDTHS.length; i++) measure(WIDTHS[i]);
+    if (failed) return;
+    var missing = pending();
+    if (!missing.length) {
+      var boxes = [];
+      for (var key in inside) {
+        if (Object.prototype.hasOwnProperty.call(inside, key)) {
+          boxes.push(key + ' ' + inside[key]);
+        }
+      }
+      boxes.sort();
+      var summary = 'three widths booted and MEASURED: say=' + SAY_CAP +
+        ' runes, note=' + NOTE_CAP + ' runes, both seats at once; ' +
+        boxes.length + ' full-cap boxes, every one wholly inside its frame [' +
+        boxes.join('; ') + ']';
+      document.getElementById('verdict').textContent = summary;
+      // Console, so the line lands in viewer-smoke.json's console tail.
+      console.log('renderer fixture: ' + summary);
+      // The fixture's OWN load signal: viewer_smoke.mjs waits on this
+      // attribute, and it is set ONLY after the measurement passed.
+      document.documentElement.setAttribute('data-replay-loaded', 'true');
+      return;
+    }
+    if (polls > 150) {                       // 150 x 100 ms = 15 s
+      var reasons = [];
+      for (var m = 0; m < missing.length; m++) {
+        reasons.push(offside[missing[m]] ||
+          (missing[m] + ' never reached the page at all, so nothing about ' +
+           'it was measured'));
+      }
+      fail(reasons.join(' | '));
+      return;
+    }
+    setTimeout(poll, 100);
   }
 
   function done() {
@@ -249,10 +430,8 @@
       return;
     }
     document.getElementById('verdict').textContent =
-      'three widths booted; say=' + SAY_CAP + ' runes, note=' + NOTE_CAP +
-      ' runes, both seats at once';
-    // The fixture's OWN load signal: viewer_smoke.mjs waits on this attribute.
-    document.documentElement.setAttribute('data-replay-loaded', 'true');
+      'three widths booted; measuring the full-cap boxes';
+    poll();
   }
 
   function boot(id, html) {
@@ -260,11 +439,12 @@
     var payload = '<script>window.__pbSay = ' + JSON.stringify(SAY) +
       '; window.__pbNote = ' + JSON.stringify(NOTE) + ';<\/script>' +
       '<script>' + SHIM.replace(/<\//g, '<\\/') + '<\/script>';
-    var patched = html.replace('<head>', '<head>' + payload);
-    if (patched === html) {
-      fail('index.html has no <head> to splice the shim into');
+    if (html.indexOf(CORE_TAG) < 0) {
+      fail('index.html does not load ' + CORE_TAG + ' -- the shim has ' +
+        'nothing to replace, and a shim the page overwrites tests nothing');
       return;
     }
+    var patched = html.split(CORE_TAG).join(payload);
     var doc = frame.contentDocument;
     doc.open();
     doc.write(patched);
@@ -283,7 +463,7 @@
         return response.text();
       })
       .then(function (html) {
-        ['w360', 'w620', 'w1280'].forEach(function (id) { boot(id, html); });
+        WIDTHS.forEach(function (id) { boot(id, html); });
       })
       .catch(function (error) {
         fail(String((error && error.message) || error));

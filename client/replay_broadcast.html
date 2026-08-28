@@ -2784,6 +2784,23 @@ body[data-embed] #board { top: 0; height: 100%; }
 }
 #pb-legend b { color: var(--paper); font-weight: 400; }
 
+/* --- the commander line: a MODEL SENTENCE, not a nameplate ------------- */
+/* The inherited .feed-row is `white-space: nowrap; max-width: none`, which is
+   right for a 10-char name plus a short badge and wrong for a 48-rune `say` or
+   a 160-rune `note`: measured in tools/ci/renderer_fixture.html, a note-only
+   row ran 53 px off the LEFT EDGE of a 360 px frame and past #killfeed's own
+   box at 620 and 1280 px (r1 review N1). The band a model sentence gets is the
+   feed's own width and it WRAPS inside it -- widen the band, never shorten the
+   sentence. Only the rows this block emits are affected. */
+.feed-row.pb-intent {
+  white-space: normal;
+  max-width: 100%;
+}
+.feed-row.pb-intent .badge {
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+
 /* --- scrubber beats: ONE RULE PER KIND the sim emits ------------------- */
 /* Every marker this block draws is a <button> with an aria-label and a title,
    and a click seeks to its tick. tests/test_viewer.nim asserts a rule exists
@@ -2972,7 +2989,7 @@ button.beat-marker:focus-visible { outline: 1px solid var(--paper); }
       pbFeedRow('<span class="who">' + CTX.esc(d.alias || ('seat ' + d.seat)) +
         '</span><span class="glyph">:</span><span class="badge">' +
         CTX.esc(String(d.stance || '').toUpperCase() + ' - ' + line) +
-        '</span>');
+        '</span>', 'pb-intent');
     }
   }
 

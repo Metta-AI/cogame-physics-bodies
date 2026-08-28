@@ -334,6 +334,18 @@ jobs:
       # shims only the wasm entry, and drives the page's own text path with a
       # full-cap 48-rune `say` and 160-rune `note` on BOTH seats at once, at
       # 360, 620 and 1280 px (cogchemists, 2026-08-24).
+      #
+      # NO STRING IN THIS GAME IS DRAWN THROUGH canvas fillText (grep -c
+      # fillText over client/ and replay-viewer/ is 0 everywhere), so
+      # --strict-text-bounds' canvas_text count is structurally 0 on both smoke
+      # steps and cannot be the evidence for checklist item 15. The two real
+      # text surfaces are measured directly instead: the DOM chrome HERE (the
+      # fixture reads back the box of every element carrying a cap string at
+      # all three widths and sets data-replay-error, which fails this step, if
+      # one is empty, clipped, ellipsised or outside its frame), and the
+      # pixie-baked board speech band in tests/test_text_bounds.nim, which
+      # bakes the band through the real frame builder and asserts the ink of a
+      # full-cap `say` on both seats stays inside it.
       # ---------------------------------------------------------------
       - name: Drive the text path at full cap in the real bundle
         run: |
