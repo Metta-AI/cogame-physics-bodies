@@ -149,7 +149,9 @@ tick once the round tick passes `ShrinkStartTick`, floored at `RingRadiusMin`.
    prone body skips the self-driven term but keeps drag and the clamp.
 5. **Traction and linear dynamics**: a prone body pushes with nothing and scrubs
    speed fast; thrust scales with effort, posture traction and `groundedCount`;
-   then friction, the per-posture speed clamp, and `p += v`.
+   then friction, the **rest floor** (integer friction can never reach zero, so
+   a body inside `RestFloorUm` — 64 µm/tick, 0.0015 m/s — is snapped to rest and
+   a coast really does end), the per-posture speed clamp, and `p += v`.
 6. **Body–body contacts.** Ten disc pairs in one fixed order, every test
    **swept**. Positional split (a prone body takes the whole penetration),
    normal impulse (equal masses), then the **shove**: a grounded foot with
