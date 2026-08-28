@@ -9,7 +9,9 @@
 ##
 ## DEGRADE, NEVER HANG. Every wait here is bounded: attempt 1 gets `attempt1Ms`,
 ## the single retry gets `retryMs`, the inter-batch floor is a bounded sleep, and
-## the whole turn is wrapped in a monotonic `turnBudgetMs` deadline. A provider
+## the whole turn is wrapped in a monotonic `turnBudgetMs` deadline — each
+## attempt's own deadline is clamped to what is left of it, so the turn cannot be
+## overrun by an attempt that started just inside the budget. A provider
 ## throttle with no other candidate model skips the retry outright (it cannot
 ## land). On a second failure the seat plays the `pusher` intent for that turn
 ## and a `fallback` record names the cause. No failure mode leaves a bug
@@ -171,8 +173,20 @@ proc turn*(engine: var DecisionEngine, sim: SimServer, turnIndex: int,
         result.add(fallbackRecord(turnIndex, seat, attempt + 1, "timeout",
           "per-turn budget exhausted before attempt " & $(attempt + 1)))
       break
-    let deadlineMs =
-      if attempt == 0: sim.config.attempt1Ms else: sim.config.retryMs
+    ## THE PER-TURN BUDGET IS THE OUTER BOUND, not just a pre-check. An attempt
+    ## that starts a millisecond inside the budget used to be allowed its whole
+    ## `retryMs`, so a turn's worst case was
+    ## `turnSpacingMs + attempt1Ms + retryMs` (~20 s) rather than the
+    ## `turnBudgetMs` the design wraps the turn in (r1 review N17). Each
+    ## attempt's deadline is now clamped to what is LEFT of the budget, floored
+    ## at 1 000 ms because curl's CURLOPT_TIMEOUT granularity is whole seconds
+    ## and floors — so a turn can overshoot by at most that floor.
+    let
+      spentMs = (getMonoTime() - turnStart).inMilliseconds.int
+      remainingMs = max(0, sim.config.turnBudgetMs - spentMs)
+      configuredMs =
+        if attempt == 0: sim.config.attempt1Ms else: sim.config.retryMs
+      deadlineMs = max(1000, min(configuredMs, remainingMs))
     var batch: RequestBatch
     for seat in open:
       var user = seatViewJson(engine.viewFor(sim, seat))

@@ -241,6 +241,34 @@ block:
   withLock fakeLock:
     fakeDelayMs = 10
 
+# --- the per-turn budget BOUNDS the turn, not just its attempts --------
+block:
+  ## r1 review N17: the budget was a pre-check only, so an attempt starting a
+  ## millisecond inside it got its whole deadline and a turn's worst case was
+  ## `turnSpacingMs + attempt1Ms + retryMs`. Here both attempt deadlines are
+  ## larger than the budget itself, against a provider that never answers in
+  ## time: the turn must still return inside the budget (plus the 1 000 ms
+  ## whole-second floor curl's timeout granularity forces).
+  withLock fakeLock:
+    windows.setLen(0)
+    fakeDelayMs = 9000
+  var sim = playingSim()
+  sim.config.turnBudgetMs = 4000
+  sim.config.attempt1Ms = 6000
+  sim.config.retryMs = 6000
+  var engine = freshEngine(sim)
+  let started = getMonoTime()
+  discard engine.turn(sim, 0, 0)
+  let elapsed = (getMonoTime() - started).inMilliseconds
+  check elapsed <= int64(sim.config.turnBudgetMs) + 1500,
+    &"a turn whose attempt deadlines exceed its budget ran {elapsed} ms " &
+    &"against a {sim.config.turnBudgetMs} ms budget"
+  for seat in 0 ..< BodyCount:
+    check engine.haveIntent[seat],
+      &"seat {seat} was left uncommanded by the budget clamp"
+  withLock fakeLock:
+    fakeDelayMs = 10
+
 # --- a 429 with no other candidate model skips the retry ---------------
 block:
   withLock fakeLock:
