@@ -1,15 +1,16 @@
 ## 12. The manifest template — every invariant the upload contract cares about.
 ##
 ## ONE ITEM OF §Tests 12 IS NOT HERE, ON PURPOSE: the installed CLI's own
-## `_load_template_manifest` + `validate_upload_manifest` acceptance check. It
-## runs in `.github/workflows/coworld-release.yml`'s "Validate the manifest
-## template with the CLI" step — a CI step, and the last one before
-## "Upload the Coworld", which is what §Packaging asks for. It cannot run here:
-## the `test` job installs Nim and nothing else, has no `uv`/`uvx` and no
-## coworld package, so a call from this suite would degrade to a no-op that
-## reports success — and pulling a pinned Python package into the test job
-## would make the whole suite depend on a network fetch. Everything else on
-## §Tests 12's list is asserted below, from the JSON directly (r1 review N11).
+## `validate_upload_manifest` acceptance check. It runs in
+## `.github/workflows/coworld-release.yml`'s "Validate the manifest with the
+## CLI" step, immediately after `coworld build` — it enforces the UPLOAD schema,
+## which requires the `game.version` that `coworld build --version` injects, so
+## it cannot run against the template. It cannot run here either: the `test` job
+## installs Nim and nothing else, has no `uv`/`uvx` and no coworld package, so a
+## call from this suite would degrade to a no-op that reports success — and
+## pulling a pinned Python package into the test job would make the whole suite
+## depend on a network fetch. Everything else on §Tests 12's list is asserted
+## below, from the JSON directly (r1 review N11).
 
 import std/[json, os, strformat, strutils, tables]
 import bodies/[sim, intents, control, baselines]

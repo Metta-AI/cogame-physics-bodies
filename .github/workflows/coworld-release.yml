@@ -161,40 +161,6 @@ jobs:
       # cannot load fails at `coworld build` with a far less specific message,
       # and a manifest it loads but will not accept fails at upload, after the
       # policies have already been published (collab-cooking, 2026-08-25).
-      - name: Validate the manifest template with the CLI
-        run: |
-          set -euo pipefail
-          uvx --from "coworld[auth]==0.1.38" python - <<'PY'
-          import json
-          import pathlib
-          import sys
-
-          try:
-              from coworld.manifest import _load_template_manifest
-          except Exception as error:            # noqa: BLE001
-              print(f"::warning::_load_template_manifest unavailable: {error}")
-              _load_template_manifest = None
-          try:
-              from coworld.manifest import validate_upload_manifest
-          except Exception as error:            # noqa: BLE001
-              print(f"::warning::validate_upload_manifest unavailable: {error}")
-              validate_upload_manifest = None
-
-          path = pathlib.Path("coworld_manifest_template.json")
-          raw = json.loads(path.read_text())
-          if _load_template_manifest is not None:
-              _load_template_manifest(str(path))
-              print("template loads")
-          if validate_upload_manifest is not None:
-              resolved = json.loads(
-                  path.read_text().replace(
-                      "{{PHYSICS_BODIES_IMAGE}}",
-                      "coworld-physics-bodies:0.0.0"))
-              validate_upload_manifest(resolved)
-              print("upload manifest validates")
-          sys.exit(0)
-          PY
-
       - name: Build the Coworld manifest
         env:
           VERSION: ${{ inputs.version }}
@@ -208,6 +174,43 @@ jobs:
             --template coworld_manifest_template.json \
             --output dist/coworld_manifest.json
           test -s dist/coworld_manifest.json
+
+      - name: Validate the manifest with the CLI
+        # AFTER `coworld build`, not before it: `validate_upload_manifest`
+        # enforces the UPLOAD schema, which requires `game.version` — and
+        # `game.version` is exactly what `coworld build --version` injects. Run
+        # against the template and it fails "game.version Field required" on a
+        # template that is perfectly correct (0.1.0, 2026-08-28).
+        run: |
+          set -euo pipefail
+          echo "Validate the manifest with the CLI" > "$RR/current_step"
+          uvx --from "$COWORLD_PKG" python - <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          # The note asks for this one too; it is not part of the installed
+          # CLI's public surface on every version, so it stays warning-only.
+          try:
+              from coworld.manifest import _load_template_manifest
+          except Exception as error:            # noqa: BLE001
+              print(f"::warning::_load_template_manifest unavailable: {error}")
+          else:
+              _load_template_manifest("coworld_manifest_template.json")
+              print("template loads")
+
+          try:
+              from coworld.manifest import validate_upload_manifest
+          except Exception as error:            # noqa: BLE001
+              print(f"::warning::validate_upload_manifest unavailable: {error}")
+              sys.exit(0)
+
+          built = json.loads(
+              pathlib.Path("dist/coworld_manifest.json").read_text())
+          validate_upload_manifest(built)
+          print("upload manifest validates")
+          PY
+
 
       - name: Certify locally
         if: ${{ inputs.skip_certify != true }}
