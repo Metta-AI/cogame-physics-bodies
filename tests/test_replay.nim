@@ -48,6 +48,30 @@ block:
     "the re-derivation did not reach GameOver"
 
 block:
+  ## complete/MATCH_WON, pinned on its own. The block above accepts either
+  ## `match_won` or `full_time` because seed 5104773's pusher-vs-anchor episode
+  ## can land on either, which left the first end reason §Tests 10 names
+  ## covered only by accident (r1 review N10). `roundsToClinch = 1` clinches on
+  ## the first decided round, so this one can only be `match_won`.
+  var cfg = defaultMatchConfig()
+  cfg.roundsToClinch = 1
+  let path = tempPath("matchwon.replay")
+  let episode = runEpisode(cfg, [blPusher, blAnchor], path)
+  check episode.sim.endReason == ReasonComplete and
+      episode.sim.endRule == EndRuleMatchWon,
+    &"the clinching episode ended {episode.sim.endReason}/" &
+    &"{episode.sim.endRule}, want complete/match_won"
+  let outcome = rederive(path)
+  check outcome.ok,
+    &"complete/match_won re-derived with a hash mismatch at {outcome.mismatch}"
+  check outcome.ticks == episode.ticks,
+    &"the match_won re-derivation stopped at {outcome.ticks}, recording was " &
+    &"{episode.ticks}"
+  check outcome.phase == GameOver,
+    "the match_won re-derivation did not reach GameOver"
+  removeFile(path)
+
+block:
   ## The cert fixture cannot clinch early (roundsToClinch == maxRounds), so it
   ## is the full_time path.
   var cfg = certConfig()
