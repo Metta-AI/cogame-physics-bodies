@@ -41,9 +41,16 @@ proc runEpisode*(config: GameConfig,
                  kinds: array[BodyCount, Baseline] = [blPusher, blPusher],
                  replayPath = "", names: array[BodyCount, string] =
                    ["BUG-1", "BUG-2"], maxTicks = 5000,
-                 sayOverride = "", labelOverride = ""): EpisodeResult =
+                 sayOverride = "", labelOverride = "",
+                 seatsJoined = BodyCount): EpisodeResult =
   ## Plays one full scripted episode through the server's control path and,
   ## when `replayPath` is set, records a `COWLDPBD` replay for it.
+  ##
+  ## `seatsJoined` < BodyCount is the NO-SHOW case: the lobby budget expires,
+  ## the round starts anyway and the missing seat's bug is driven by the
+  ## scripted layer for the whole run (§End conditions). Every seat still gets
+  ## an intent, exactly as `decide.turn` gives one to every seat of
+  ## `sim.seatCount()` whether or not a player is behind it.
   var sim = initSimServer(config)
   sim.gameEventLoggingEnabled = false
   var ctl = initControlState()
@@ -51,7 +58,7 @@ proc runEpisode*(config: GameConfig,
     if replayPath.len > 0: openReplayWriter(replayPath,
       config.configJson(sim.perm))
     else: ReplayWriter()
-  for seat in 0 ..< sim.seatCount():
+  for seat in 0 ..< min(seatsJoined, sim.seatCount()):
     discard sim.addPlayer(names[seat], seat, "")
     if replayPath.len > 0:
       writer.writeJoin(tickTime(sim.tickCount), seat, names[seat], seat, "")

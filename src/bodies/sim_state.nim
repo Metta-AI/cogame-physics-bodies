@@ -18,7 +18,15 @@ proc seatCount*(sim: SimServer): int =
   clamp(sim.config.numAgents, 1, BodyCount)
 
 proc lobbyIsStarting*(sim: SimServer): bool =
-  sim.phase == Lobby and sim.players.len >= sim.config.minPlayers
+  ## The lobby is counting down to the first round: either every required seat
+  ## is in, or the lobby budget expired with one missing. A no-show does NOT
+  ## end the episode and does NOT hold the lobby open for the whole wall-clock
+  ## budget — its bug plays the `pusher` baseline and the match is played
+  ## (§End conditions). `lobbyNoShowSeat` is derived inside `step` from
+  ## `lobbyTicks` and the recorded joins, so playback reaches the same verdict
+  ## on the same tick.
+  sim.phase == Lobby and
+    (sim.players.len >= sim.config.minPlayers or sim.lobbyNoShowSeat >= 0)
 
 proc lobbyStartTicksRemaining*(sim: SimServer): int =
   if not sim.lobbyIsStarting():

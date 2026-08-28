@@ -8,9 +8,12 @@
 ## The provider is reached through the BEDROCK sidecar credentials, which are
 ## the one transport whose endpoint is configurable, so no network is touched.
 
-import std/[json, locks, monotimes, os, strformat, strutils, times]
+import std/[json, locks, monotimes, options, os, strformat, strutils, times]
 import curly
 import mummy
+from whisky import nil
+import bitworld/runtime
+import bitworld/spriteprotocol
 import bodies/[sim, intents, control, baselines, llm, decide, replays]
 import bodies/server as gameServer
 import helpers
@@ -95,6 +98,21 @@ proc freshEngine(sim: SimServer, prompts = true): DecisionEngine =
     result.seats[seat].isLlm = prompts
     result.seats[seat].prompt = "be decisive"
     result.seats[seat].label = "fake"
+
+type GameServerArgs = object
+  cfg: GameConfig
+  runtime: RuntimeConfig
+
+var gameThread: Thread[GameServerArgs]
+
+proc gameServeProc(args: GameServerArgs) {.thread.} =
+  ## The REAL game server loop, in process, so the no-show declaration below is
+  ## made against the actual lobby path rather than a paraphrase of it.
+  {.gcsafe.}:
+    try:
+      runServerLoop("127.0.0.1", 8794, args.cfg, "", "", "", args.runtime)
+    except CatchableError as error:
+      echo "game server loop ended: ", error.msg
 
 proc playingSim(): SimServer =
   var cfg = defaultMatchConfig()
@@ -352,6 +370,96 @@ block:
   check not gameServer.parseRegistration("""{"type":"shout","text":"hi"}""").ok,
     "a non-register JSON object was accepted as a registration"
 
+# --- a NEVER-CONNECTING seat: declared, logged, match still played ----
+block:
+  ## §End conditions and §Tests 7. Seat 1 never connects. The lobby budget
+  ## expires, the no-show is declared to COGAME_PLAYER_FAILURE_URI, its bug is
+  ## driven by `pusher`, and the match plays to a NORMAL ending. Before r1
+  ## review N2 the round never started at all — `startRound` was gated on
+  ## `players.len >= minPlayers`, so a one-seat episode sat in the lobby until
+  ## the 660 s wall-clock stop and scored 0-0 with `rounds: 0`.
+  let
+    workDir = tempPath("engine-noshow")
+    failurePath = workDir / "player-failure.json"
+    resultsPath = workDir / "noshow-results.json"
+  createDir(workDir)
+  putEnv("COGAME_PLAYER_FAILURE_URI", "file://" & failurePath)
+  var cfg = defaultGameConfig()
+  cfg.seed = 5104773
+  cfg.players = @[PlayerConfig(name: "BUG-1"), PlayerConfig(name: "BUG-2")]
+  cfg.maxGames = 1
+  cfg.maxRounds = 1
+  cfg.roundsToClinch = 1
+  ## The lobby is charged against maxTicks too, so leave room for it: the round
+  ## starts at tick 47 and its clock ends at 95, inside the 120-tick episode.
+  cfg.roundTicks = 48
+  cfg.resetTicks = 12
+  cfg.maxTicks = 120
+  cfg.turnTicks = 24
+  cfg.turnSpacingMs = 0
+  cfg.wallClockBudgetSeconds = 120
+  cfg.lobbyJoinTimeoutTicks = 48       ## 2 s of lobby, not 30
+  cfg.startWaitTicks = 12
+  cfg.gameOverTicks = 12
+  cfg.fastMode = true
+  createThread(gameThread, gameServeProc, GameServerArgs(cfg: cfg,
+    runtime: RuntimeConfig(host: "127.0.0.1", port: 8794,
+      resultsUri: "file://" & resultsPath)))
+
+  ## ONE seat joins. The other never does.
+  var socket: whisky.WebSocket = nil
+  for _ in 0 ..< 60:
+    try:
+      socket = whisky.newWebSocket("ws://127.0.0.1:8794/player?slot=0")
+      break
+    except CatchableError:
+      sleep(100)
+  check socket != nil, "seat 0 could not connect to the in-process server"
+  if socket != nil:
+    whisky.send(socket, blobFromSpriteChat($(%*{
+      "type": "register", "prompt": "", "scripted": "pusher",
+      "policy": "test-noshow-0"})), whisky.BinaryMessage)
+    ## Ack every frame so `fastMode` advances on the seat rather than on the
+    ## 24 fps floor; bounded receive, and bounded overall.
+    let deadline = epochTime() + 120.0
+    while epochTime() < deadline and not fileExists(resultsPath):
+      try:
+        if whisky.receiveMessage(socket, timeout = 250).isSome:
+          whisky.send(socket, blobFromSpriteReady(), whisky.BinaryMessage)
+      except CatchableError:
+        break
+    try: whisky.close(socket) except CatchableError: discard
+  joinThread(gameThread)
+
+  check fileExists(failurePath),
+    "a never-connecting seat wrote no COGAME_PLAYER_FAILURE_URI artifact"
+  if fileExists(failurePath):
+    let declared = parseJson(readFile(failurePath))
+    check declared{"failed_policy_index"}.getInt(-1) == 1,
+      &"the no-show was charged to policy index " &
+      $declared{"failed_policy_index"}.getInt(-1) & ", want 1 (the lowest " &
+      "missing slot)"
+    check "pusher" in declared{"message"}.getStr(),
+      "the declaration does not say the no-show's bug plays pusher: " &
+      declared{"message"}.getStr()
+  check fileExists(resultsPath),
+    "a one-seat episode wrote no results — it never reached a normal ending"
+  if fileExists(resultsPath):
+    let results = parseJson(readFile(resultsPath))
+    check results["reason"].getStr() == ReasonComplete,
+      &"""a one-seat episode ended {results["reason"].getStr()}, want """ &
+      "complete: a no-show must not push the episode onto the wall-clock stop"
+    check results["rounds"].getInt() >= 1,
+      &"""a one-seat episode banked {results["rounds"].getInt()} rounds""" &
+      " — the match must be PLAYED, not waited out"
+  ## LOGGED LOUDLY: the phrase phase 60 greps the game log for. The line is
+  ## printed by the loop above (it is in this test's own stdout in CI); the
+  ## source is pinned so it cannot be quietly dropped.
+  let source = readFile(repoFile("src/bodies/server.nim"))
+  check source.contains("never registered; driving "),
+    "server.nim no longer logs the no-show loudly"
+  removeDir(workDir)
+
 server.close()
 joinThread(serverThread)
 server2.close()
@@ -360,3 +468,9 @@ joinThread(serverThread2)
 if failures > 0:
   quit("test_engine: " & $failures & " failure(s)", 1)
 echo "test_engine: ok"
+## Exit WITHOUT running the module teardown. The in-process GAME server above
+## leaves mummy, curly and pixie allocations shared across threads, and tearing
+## them down from an exiting main thread segfaults on a GREEN run — which would
+## read as a test failure. tests/test_server.nim ends the same way, for the same
+## reason.
+quit(0)

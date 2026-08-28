@@ -65,6 +65,7 @@ proc initSimServer*(config: GameConfig): SimServer =
   result.phase = Lobby
   result.tickCount = 0
   result.gameStartTick = 0
+  result.lobbyNoShowSeat = -1
   result.winner = -1
   result.stopTick = -1
   result.gameEventLoggingEnabled = true
@@ -485,6 +486,17 @@ proc step*(sim: var SimServer, cmds: openArray[uint8]) =
   of Lobby:
     inc sim.lobbyTicks
     sim.logLobbyWaiting()
+    if sim.lobbyNoShowSeat < 0 and sim.lobbyJoinTimedOut():
+      ## The lobby budget expired with a seat missing. Latch WHICH seat (the
+      ## lowest missing slot — joins are strictly slot-sequential) and let the
+      ## round start: the no-show's bug is driven by `pusher` for the whole
+      ## run. The server reads this flag to declare the player failure, and
+      ## because it is derived here — from `lobbyTicks` and the recorded joins,
+      ## both of which playback reproduces — the browser re-derives the same
+      ## start tick and the hash chain is unaffected.
+      sim.lobbyNoShowSeat = int32(sim.players.len)
+      sim.logGameEvent("lobby budget expired with seat " &
+        $sim.lobbyNoShowSeat & " missing; starting the match anyway")
     if sim.lobbyIsStarting() and
         sim.lobbyTicks >= sim.config.startWaitTicks:
       sim.gameStartTick = sim.tickCount

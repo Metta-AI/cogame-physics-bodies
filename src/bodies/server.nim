@@ -593,7 +593,6 @@ proc runServerLoop*(host: string = sim.DefaultHost,
     lastTick = getMonoTime()
     episodeStart = getMonoTime()
     deadlineHit = false
-    forceStart = false
     lastTurnKey = -1
     liveSpeedIndex = 0
     quitAfterFrame = false
@@ -641,14 +640,17 @@ proc runServerLoop*(host: string = sim.DefaultHost,
             sim.removePlayerAt(index)
         appState.closedSockets.setLen(0)
 
-        if not replayLoaded and sim.lobbyJoinTimedOut() and
+        if not replayLoaded and sim.lobbyNoShowSeat >= 0 and
             not reportedNoShow:
           ## A seat that never connects does NOT end the episode: report the
           ## no-show (lowest missing slot only), then play on — that bug runs
-          ## the published `pusher` baseline for the whole match.
+          ## the published `pusher` baseline for the whole match. The seat is
+          ## latched by `step` when the lobby budget expires (sim.nim, Lobby
+          ## branch), which also starts the round: reading the LATCH rather
+          ## than the lobby predicate is what makes the report survive the
+          ## phase change that happens on the very same tick.
           reportedNoShow = true
-          forceStart = true
-          let stuckSlot = sim.nextPlayerSlot()
+          let stuckSlot = int(sim.lobbyNoShowSeat)
           declarePlayerFailure(stuckSlot,
             "player slot " & $stuckSlot & " never joined the lobby within " &
               $config.lobbyJoinTimeoutTicks & " lobby ticks (~" &
@@ -746,14 +748,6 @@ proc runServerLoop*(host: string = sim.DefaultHost,
             replayCommands.add command
           appState.globalViewers[websocket].replayCommands.setLen(0)
           appState.globalViewers[websocket].replaySeekTick = -1
-
-    ## Force the match to start once every seat is in (or the lobby budget
-    ## expired and the no-show has been reported).
-    if not replayLoaded and sim.phase == Lobby and
-        (sim.players.len >= sim.seatCount() or forceStart) and
-        sim.players.len + (if forceStart: 1 else: 0) > 0:
-      if sim.lobbyTicks < config.startWaitTicks and forceStart:
-        sim.lobbyTicks = config.startWaitTicks
 
     var frameEvents = newJArray()
     if replayLoaded:

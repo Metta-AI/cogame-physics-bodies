@@ -309,6 +309,7 @@ type
     tickCount*: int
     gameStartTick*: int
     lobbyTicks*: int
+    lobbyNoShowSeat*: int32    ## seat the lobby budget expired on, -1 = none.
     gameOverTicks*: int
     rngState*: uint64
     rngDraws*: int32

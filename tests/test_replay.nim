@@ -165,6 +165,51 @@ block:
     "a faulted episode did not report fault/sim_fault"
   removeFile(path)
 
+# --- a PARTIAL LOBBY: one seat never joins, and it still re-derives ---
+block:
+  ## §End conditions: a seat that never connects does not end the episode. The
+  ## lobby budget expires, the round starts anyway, and the no-show's bug plays
+  ## the scripted baseline for the whole run. The force-start is derived INSIDE
+  ## `step` from `lobbyTicks` and the recorded joins, so playback must reach the
+  ## same start tick — a server-side force-start would diverge here at the
+  ## first tick of round 1.
+  var cfg = defaultMatchConfig()
+  cfg.lobbyJoinTimeoutTicks = 240
+  cfg.maxRounds = 1
+  cfg.roundsToClinch = 1
+  cfg.maxTicks = cfg.roundTicks + cfg.resetTicks
+  let path = tempPath("noshow.replay")
+  let episode = runEpisode(cfg, [blPusher, blAnchor], path, seatsJoined = 1)
+  check episode.sim.players.len == 1,
+    &"the partial lobby seated {episode.sim.players.len} players, want 1"
+  check episode.sim.lobbyNoShowSeat == 1,
+    &"the no-show seat was latched as {episode.sim.lobbyNoShowSeat}, want 1"
+  check episode.sim.gameStartTick == cfg.lobbyJoinTimeoutTicks - 1,
+    &"the round started at tick {episode.sim.gameStartTick}, want the lobby " &
+    &"budget {cfg.lobbyJoinTimeoutTicks - 1} — a never-joining seat must not " &
+    "hold the lobby for the whole wall-clock budget"
+  check episode.sim.endReason == ReasonComplete,
+    &"a one-seat episode ended {episode.sim.endReason}, want complete"
+  check episode.sim.roundLog.len == 1,
+    &"a one-seat episode banked {episode.sim.roundLog.len} rounds, want 1 — " &
+    "the match must play to a normal ending"
+  ## BOTH bugs were commanded: a no-show leaves no bug uncommanded.
+  var moved = 0
+  for i in 0 ..< BodyCount:
+    if episode.sim.bodies[i].contacts > 0 or
+        episode.sim.effortTicks[i] > 0:
+      inc moved
+  check moved == BodyCount,
+    &"only {moved} of {BodyCount} bugs were driven in a one-seat episode"
+  let outcome = rederive(path)
+  check outcome.ok,
+    &"the partial-lobby episode re-derived with a hash mismatch at " &
+    $outcome.mismatch
+  check outcome.ticks == episode.ticks,
+    &"the partial-lobby re-derivation stopped at {outcome.ticks}, recording " &
+    &"was {episode.ticks}"
+  removeFile(path)
+
 # --- the recorded stream's shape -------------------------------------
 block:
   var cfg = defaultMatchConfig()
