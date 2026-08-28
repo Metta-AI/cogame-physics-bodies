@@ -75,6 +75,10 @@ const
   BubbleBandHeightPx* = 120
   BubbleWidthPx* = 880
   BubbleFontPx* = 26.0
+  BubbleHoldTicks* = 60
+    ## How long one line is drawn: 2.5 s at TargetFps (§Readouts 6). Turns are
+    ## 1.5 s apart, so a bug that says nothing on its next turn does not leave
+    ## its last remark on the board indefinitely.
 
   ShoutZoomBaseW = 1235.0
   ShoutZoomBaseH = 659.0
@@ -1095,14 +1099,27 @@ proc buildBoardInit(defs: var seq[SpriteDefinition]): seq[uint8] =
 proc bubbleLines(sim: SimServer): array[BodyCount, string] =
   ## The two spectator lines, taken from the most recent `intent` records. They
   ## are FEED text, never simulation state, so nothing here is hashed.
+  ##
+  ## A line is DRAWN FOR `BubbleHoldTicks` (2.5 s) and then goes away, rather
+  ## than hanging on the board until something replaces it (r1 review N14). A
+  ## record's tick is its turn boundary — the server pushes it at
+  ## `tickCount mod turnTicks == 0` — so the dwell is the same on record and on
+  ## playback, including after a seek, where the ring buffer is restored from
+  ## the keyframe.
+  let turnTicks = max(1, sim.config.turnTicks)
   for record in sim.feedIntents:
     try:
       let node = parseJson(record)
       if node{"k"}.getStr() != "intent":
         continue
       let body = node{"body"}.getInt(-1)
+      let spokenAt = node{"turn"}.getInt(-1) * turnTicks
       if body >= 0 and body < BodyCount:
-        result[body] = node{"say"}.getStr()
+        if node{"turn"}.getInt(-1) >= 0 and
+            sim.tickCount - spokenAt > BubbleHoldTicks:
+          result[body] = ""
+        else:
+          result[body] = node{"say"}.getStr()
     except CatchableError:
       discard
 
