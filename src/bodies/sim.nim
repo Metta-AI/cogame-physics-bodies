@@ -527,6 +527,13 @@ proc step*(sim: var SimServer, cmds: openArray[uint8]) =
     discard
 
   ## Step 3: ring geometry, then leg reach / foot positions / groundedCount.
+  ##
+  ## ONE-TICK COUPLING, deliberate and literal: `refreshLegs` reads
+  ## `body.posture()`, which reads `lastCmd`, and `applyDynamics` (step 5) is
+  ## what overwrites `lastCmd`. So the reach used here is the PREVIOUS tick's
+  ## posture while step 5's thrust uses this tick's — which is exactly what
+  ## "step 3 before steps 4-5" means, and it is hashed, so it must stay that
+  ## way. A reader could mistake it for a bug (r1 review N17).
   sim.ringRadiusNow = ringRadiusAt(sim.config, sim.roundTick)
   for i in 0 ..< BodyCount:
     sim.bodies[i].refreshLegs(RingCentreX, RingCentreY, sim.ringRadiusNow)
