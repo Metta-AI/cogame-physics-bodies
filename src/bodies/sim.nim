@@ -192,22 +192,20 @@ proc applyDynamics(sim: var SimServer, bodyIndex: int, cmd: uint8) =
     sim.effortSum[bodyIndex] += int64(effort)
     sim.effortTicks[bodyIndex] += 1
 
-proc discPairs(sim: SimServer): array[25, DiscPair] =
-  ## The five discs of body 0 against the five of body 1, in ONE fixed order:
-  ## outer loop body 0's index, inner loop body 1's, torso first. Ten of the
-  ## twenty-five entries are live at once (a prone bug folds its legs in, so
-  ## its collision set is the torso disc alone), and the array is fixed-size so
-  ## nothing allocates inside the step.
+proc discPairs(sim: SimServer): array[DiscPairCount, DiscPair] =
+  ## The five discs of body 0 (torso + four feet) against the five of body 1,
+  ## in ONE fixed order: outer loop body 0's index, inner loop body 1's, torso
+  ## first. ALL 25 are built — the array is fixed-size so nothing allocates
+  ## inside the step — and `resolveContacts` is the single place that decides
+  ## which of them are LIVE this tick: a prone bug folds its legs in, so its
+  ## collision set is the torso disc alone, and a foot over the rim has no
+  ## floor under it. Between 1 (two prone bugs) and 25 (both upright, eight
+  ## feet on clay) pairs are tested.
   let
     a = sim.bodies[0]
     b = sim.bodies[1]
   var n = 0
   for ia in -1 ..< LegCount:
-    if ia >= 0 and (a.downTicks > 0 or not a.footGrounded[ia]):
-      ## An airborne foot is over the rim: no floor, and nothing to shove
-      ## with. It still cannot collide, which is what makes the edge dangerous
-      ## rather than merely slow.
-      discard
     for ib in -1 ..< LegCount:
       var pair = DiscPair(legA: ia, legB: ib)
       if ia < 0:
@@ -230,8 +228,8 @@ proc discPairs(sim: SimServer): array[25, DiscPair] =
       inc n
 
 proc resolveContacts(sim: var SimServer) =
-  ## Step 6, the sumo core. Ten live disc pairs, ONE fixed order, every test
-  ## SWEPT so a fast foot cannot tunnel through a torso between two ticks.
+  ## Step 6, the sumo core. Up to 25 disc pairs, ONE fixed order, every live
+  ## test SWEPT so a fast foot cannot tunnel through a torso between two ticks.
   ##
   ## The SHOVE is deliberately not a closed-system impulse: the momentum comes
   ## from the FLOOR, not from the receiver, and a well-planted pusher
