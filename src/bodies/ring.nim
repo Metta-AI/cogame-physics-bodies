@@ -1,6 +1,6 @@
 ## The ring: its fixed geometry, its shrink law, the seeded seat/body
 ## permutation and per-round start axis (with the end swap), and the swept
-## disc-contact test the sumo core runs on ten disc pairs a tick.
+## disc-contact test the sumo core runs on up to 25 disc pairs a tick.
 ##
 ## There is no map generator, no `mapSpec`, no wall mask and no procedural
 ## terrain in this coworld: one circular ring, centred, shrinking on a fixed
@@ -114,8 +114,9 @@ proc startPlacement*(axis: int32, roundIndex: int32, bodyIndex: int):
 
 type
   DiscPair* = object
-    ## One of the ten disc pairs tested every tick, already resolved to
-    ## centres, radii and the relative displacement travelled this tick.
+    ## One of the `DiscPairCount` disc pairs built every tick (five discs a
+    ## side), already resolved to centres, radii and the relative displacement
+    ## travelled this tick. Which of them are live is `resolveContacts`' call.
     legA*, legB*: int          ## -1 = the torso disc.
     ax*, ay*, bx*, by*: int32
     ra*, rb*: int32
