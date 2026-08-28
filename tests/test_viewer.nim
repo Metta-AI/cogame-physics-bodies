@@ -93,6 +93,14 @@ block:
       &"replay_broadcast.html lost the inherited element #{id}"
   check page.contains(".tiny"),
     "replay_broadcast.html lost the .tiny (360 px) block"
+  ## The round/ring readout is a game-block element of its own (r1 review N15),
+  ## so #clock-caption can go on naming the clock. Both must be on screen: the
+  ## element is created by the block, so what the page has to carry is its id
+  ## and a CSS rule for it.
+  check page.contains("#pb-ring {") and page.contains("el.id = 'pb-ring'"),
+    "the round/ring caption element #pb-ring is not both styled and created"
+  check page.contains("'Round clock'"),
+    "#clock-caption no longer names the round clock"
 
 # --- every element the INHERITED chrome dereferences must exist --------
 # chrome_common.js is byte-identical and unconditionally does
