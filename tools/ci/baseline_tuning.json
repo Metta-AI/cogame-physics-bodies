@@ -1,0 +1,413 @@
+{
+  "seeds": 20,
+  "pick": {
+    "rimGuardUm": 600000,
+    "chargeLeadTicks": 4,
+    "liftEngageUm": 620000
+  },
+  "measured": {
+    "pusherWins": 20,
+    "rounds": 67,
+    "ringOuts": 61,
+    "mirrorKnockdowns": 132,
+    "faults": 0
+  },
+  "grid": [
+    {
+      "rimGuardUm": 400000,
+      "chargeLeadTicks": 2,
+      "liftEngageUm": 620000,
+      "pusherWins": 16,
+      "rounds": 72,
+      "ringOuts": 58,
+      "mirrorKnockdowns": 141,
+      "faults": 0,
+      "score": 16805
+    },
+    {
+      "rimGuardUm": 400000,
+      "chargeLeadTicks": 2,
+      "liftEngageUm": 820000,
+      "pusherWins": 18,
+      "rounds": 71,
+      "ringOuts": 59,
+      "mirrorKnockdowns": 158,
+      "faults": 0,
+      "score": 18835
+    },
+    {
+      "rimGuardUm": 400000,
+      "chargeLeadTicks": 2,
+      "liftEngageUm": 1020000,
+      "pusherWins": 18,
+      "rounds": 77,
+      "ringOuts": 69,
+      "mirrorKnockdowns": 154,
+      "faults": 0,
+      "score": 18895
+    },
+    {
+      "rimGuardUm": 400000,
+      "chargeLeadTicks": 4,
+      "liftEngageUm": 620000,
+      "pusherWins": 19,
+      "rounds": 69,
+      "ringOuts": 63,
+      "mirrorKnockdowns": 134,
+      "faults": 0,
+      "score": 19915
+    },
+    {
+      "rimGuardUm": 400000,
+      "chargeLeadTicks": 4,
+      "liftEngageUm": 820000,
+      "pusherWins": 18,
+      "rounds": 74,
+      "ringOuts": 66,
+      "mirrorKnockdowns": 156,
+      "faults": 0,
+      "score": 18895
+    },
+    {
+      "rimGuardUm": 400000,
+      "chargeLeadTicks": 4,
+      "liftEngageUm": 1020000,
+      "pusherWins": 20,
+      "rounds": 72,
+      "ringOuts": 62,
+      "mirrorKnockdowns": 153,
+      "faults": 0,
+      "score": 20865
+    },
+    {
+      "rimGuardUm": 400000,
+      "chargeLeadTicks": 6,
+      "liftEngageUm": 620000,
+      "pusherWins": 17,
+      "rounds": 74,
+      "ringOuts": 62,
+      "mirrorKnockdowns": 134,
+      "faults": 0,
+      "score": 17835
+    },
+    {
+      "rimGuardUm": 400000,
+      "chargeLeadTicks": 6,
+      "liftEngageUm": 820000,
+      "pusherWins": 20,
+      "rounds": 66,
+      "ringOuts": 54,
+      "mirrorKnockdowns": 152,
+      "faults": 0,
+      "score": 20815
+    },
+    {
+      "rimGuardUm": 400000,
+      "chargeLeadTicks": 6,
+      "liftEngageUm": 1020000,
+      "pusherWins": 19,
+      "rounds": 76,
+      "ringOuts": 63,
+      "mirrorKnockdowns": 157,
+      "faults": 0,
+      "score": 19825
+    },
+    {
+      "rimGuardUm": 400000,
+      "chargeLeadTicks": 8,
+      "liftEngageUm": 620000,
+      "pusherWins": 18,
+      "rounds": 67,
+      "ringOuts": 61,
+      "mirrorKnockdowns": 128,
+      "faults": 0,
+      "score": 18915
+    },
+    {
+      "rimGuardUm": 400000,
+      "chargeLeadTicks": 8,
+      "liftEngageUm": 820000,
+      "pusherWins": 19,
+      "rounds": 65,
+      "ringOuts": 62,
+      "mirrorKnockdowns": 151,
+      "faults": 0,
+      "score": 19955
+    },
+    {
+      "rimGuardUm": 400000,
+      "chargeLeadTicks": 8,
+      "liftEngageUm": 1020000,
+      "pusherWins": 18,
+      "rounds": 70,
+      "ringOuts": 60,
+      "mirrorKnockdowns": 152,
+      "faults": 0,
+      "score": 18855
+    },
+    {
+      "rimGuardUm": 600000,
+      "chargeLeadTicks": 2,
+      "liftEngageUm": 620000,
+      "pusherWins": 19,
+      "rounds": 73,
+      "ringOuts": 57,
+      "mirrorKnockdowns": 143,
+      "faults": 0,
+      "score": 19785
+    },
+    {
+      "rimGuardUm": 600000,
+      "chargeLeadTicks": 2,
+      "liftEngageUm": 820000,
+      "pusherWins": 19,
+      "rounds": 72,
+      "ringOuts": 61,
+      "mirrorKnockdowns": 161,
+      "faults": 0,
+      "score": 19845
+    },
+    {
+      "rimGuardUm": 600000,
+      "chargeLeadTicks": 2,
+      "liftEngageUm": 1020000,
+      "pusherWins": 20,
+      "rounds": 74,
+      "ringOuts": 62,
+      "mirrorKnockdowns": 156,
+      "faults": 0,
+      "score": 20835
+    },
+    {
+      "rimGuardUm": 600000,
+      "chargeLeadTicks": 4,
+      "liftEngageUm": 620000,
+      "pusherWins": 20,
+      "rounds": 67,
+      "ringOuts": 61,
+      "mirrorKnockdowns": 132,
+      "faults": 0,
+      "score": 20915
+    },
+    {
+      "rimGuardUm": 600000,
+      "chargeLeadTicks": 4,
+      "liftEngageUm": 820000,
+      "pusherWins": 19,
+      "rounds": 70,
+      "ringOuts": 65,
+      "mirrorKnockdowns": 147,
+      "faults": 0,
+      "score": 19925
+    },
+    {
+      "rimGuardUm": 600000,
+      "chargeLeadTicks": 4,
+      "liftEngageUm": 1020000,
+      "pusherWins": 18,
+      "rounds": 76,
+      "ringOuts": 64,
+      "mirrorKnockdowns": 152,
+      "faults": 0,
+      "score": 18845
+    },
+    {
+      "rimGuardUm": 600000,
+      "chargeLeadTicks": 6,
+      "liftEngageUm": 620000,
+      "pusherWins": 20,
+      "rounds": 65,
+      "ringOuts": 54,
+      "mirrorKnockdowns": 122,
+      "faults": 0,
+      "score": 20835
+    },
+    {
+      "rimGuardUm": 600000,
+      "chargeLeadTicks": 6,
+      "liftEngageUm": 820000,
+      "pusherWins": 17,
+      "rounds": 71,
+      "ringOuts": 59,
+      "mirrorKnockdowns": 152,
+      "faults": 0,
+      "score": 17835
+    },
+    {
+      "rimGuardUm": 600000,
+      "chargeLeadTicks": 6,
+      "liftEngageUm": 1020000,
+      "pusherWins": 17,
+      "rounds": 72,
+      "ringOuts": 61,
+      "mirrorKnockdowns": 149,
+      "faults": 0,
+      "score": 17845
+    },
+    {
+      "rimGuardUm": 600000,
+      "chargeLeadTicks": 8,
+      "liftEngageUm": 620000,
+      "pusherWins": 18,
+      "rounds": 67,
+      "ringOuts": 62,
+      "mirrorKnockdowns": 122,
+      "faults": 0,
+      "score": 18925
+    },
+    {
+      "rimGuardUm": 600000,
+      "chargeLeadTicks": 8,
+      "liftEngageUm": 820000,
+      "pusherWins": 19,
+      "rounds": 68,
+      "ringOuts": 63,
+      "mirrorKnockdowns": 145,
+      "faults": 0,
+      "score": 19925
+    },
+    {
+      "rimGuardUm": 600000,
+      "chargeLeadTicks": 8,
+      "liftEngageUm": 1020000,
+      "pusherWins": 18,
+      "rounds": 73,
+      "ringOuts": 60,
+      "mirrorKnockdowns": 148,
+      "faults": 0,
+      "score": 18825
+    },
+    {
+      "rimGuardUm": 800000,
+      "chargeLeadTicks": 2,
+      "liftEngageUm": 620000,
+      "pusherWins": 17,
+      "rounds": 78,
+      "ringOuts": 55,
+      "mirrorKnockdowns": 143,
+      "faults": 0,
+      "score": 17705
+    },
+    {
+      "rimGuardUm": 800000,
+      "chargeLeadTicks": 2,
+      "liftEngageUm": 820000,
+      "pusherWins": 18,
+      "rounds": 74,
+      "ringOuts": 55,
+      "mirrorKnockdowns": 159,
+      "faults": 0,
+      "score": 18745
+    },
+    {
+      "rimGuardUm": 800000,
+      "chargeLeadTicks": 2,
+      "liftEngageUm": 1020000,
+      "pusherWins": 20,
+      "rounds": 65,
+      "ringOuts": 48,
+      "mirrorKnockdowns": 151,
+      "faults": 0,
+      "score": 20735
+    },
+    {
+      "rimGuardUm": 800000,
+      "chargeLeadTicks": 4,
+      "liftEngageUm": 620000,
+      "pusherWins": 18,
+      "rounds": 73,
+      "ringOuts": 62,
+      "mirrorKnockdowns": 135,
+      "faults": 0,
+      "score": 18845
+    },
+    {
+      "rimGuardUm": 800000,
+      "chargeLeadTicks": 4,
+      "liftEngageUm": 820000,
+      "pusherWins": 19,
+      "rounds": 73,
+      "ringOuts": 59,
+      "mirrorKnockdowns": 148,
+      "faults": 0,
+      "score": 19805
+    },
+    {
+      "rimGuardUm": 800000,
+      "chargeLeadTicks": 4,
+      "liftEngageUm": 1020000,
+      "pusherWins": 19,
+      "rounds": 70,
+      "ringOuts": 53,
+      "mirrorKnockdowns": 149,
+      "faults": 0,
+      "score": 19755
+    },
+    {
+      "rimGuardUm": 800000,
+      "chargeLeadTicks": 6,
+      "liftEngageUm": 620000,
+      "pusherWins": 17,
+      "rounds": 75,
+      "ringOuts": 59,
+      "mirrorKnockdowns": 122,
+      "faults": 0,
+      "score": 17785
+    },
+    {
+      "rimGuardUm": 800000,
+      "chargeLeadTicks": 6,
+      "liftEngageUm": 820000,
+      "pusherWins": 17,
+      "rounds": 76,
+      "ringOuts": 58,
+      "mirrorKnockdowns": 151,
+      "faults": 0,
+      "score": 17765
+    },
+    {
+      "rimGuardUm": 800000,
+      "chargeLeadTicks": 6,
+      "liftEngageUm": 1020000,
+      "pusherWins": 19,
+      "rounds": 64,
+      "ringOuts": 50,
+      "mirrorKnockdowns": 150,
+      "faults": 0,
+      "score": 19785
+    },
+    {
+      "rimGuardUm": 800000,
+      "chargeLeadTicks": 8,
+      "liftEngageUm": 620000,
+      "pusherWins": 19,
+      "rounds": 69,
+      "ringOuts": 60,
+      "mirrorKnockdowns": 122,
+      "faults": 0,
+      "score": 19865
+    },
+    {
+      "rimGuardUm": 800000,
+      "chargeLeadTicks": 8,
+      "liftEngageUm": 820000,
+      "pusherWins": 19,
+      "rounds": 66,
+      "ringOuts": 57,
+      "mirrorKnockdowns": 145,
+      "faults": 0,
+      "score": 19865
+    },
+    {
+      "rimGuardUm": 800000,
+      "chargeLeadTicks": 8,
+      "liftEngageUm": 1020000,
+      "pusherWins": 20,
+      "rounds": 68,
+      "ringOuts": 53,
+      "mirrorKnockdowns": 142,
+      "faults": 0,
+      "score": 20775
+    }
+  ]
+}

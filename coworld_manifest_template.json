@@ -1,0 +1,632 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Metta-AI/metta/main/packages/coworld/src/coworld/coworld_manifest_schema.json",
+  "episode_timeout_minutes": 20,
+  "tags": [
+    "physics",
+    "competitive",
+    "continuous-control",
+    "zero-sum",
+    "llm"
+  ],
+  "game": {
+    "name": "physics-bodies",
+    "description": "Two four-legged robot bugs push each other out of a shrinking sumo ring; off-centre shoves spin you, and a bug that tips over cannot push for a second and a half.",
+    "owner": "daveey@softmax.com",
+    "replay_viewer": {
+      "bundle": "static-replay-viewer"
+    },
+    "runnable": {
+      "type": "game",
+      "image": "{{PHYSICS_BODIES_IMAGE}}",
+      "run": [
+        "/bin/physics-bodies"
+      ],
+      "env": {
+        "ANTHROPIC_API_KEY_URI": "secret://coworld/physics-bodies/anthropic_api_key"
+      },
+      "source_url": "https://github.com/Metta-AI/cogame-physics-bodies/tree/main"
+    },
+    "config_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tokens",
+        "players"
+      ],
+      "properties": {
+        "tokens": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "maxItems": 2
+        },
+        "players": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "slots": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 2,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "alias": {
+                "type": "string"
+              },
+              "token": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "closedRoster": {
+          "type": "boolean",
+          "default": false
+        },
+        "seed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "num_agents": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2,
+          "default": 2
+        },
+        "minPlayers": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2,
+          "default": 2
+        },
+        "maxTicks": {
+          "type": "integer",
+          "minimum": 36,
+          "maximum": 100000,
+          "default": 2160
+        },
+        "maxGames": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4,
+          "default": 1
+        },
+        "turnTicks": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 6000,
+          "default": 36
+        },
+        "roundTicks": {
+          "type": "integer",
+          "minimum": 36,
+          "maximum": 100000,
+          "default": 396
+        },
+        "resetTicks": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 6000,
+          "default": 36
+        },
+        "maxRounds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5,
+          "default": 5
+        },
+        "roundsToClinch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5,
+          "default": 3
+        },
+        "ringRadiusUm": {
+          "type": "integer",
+          "minimum": 600000,
+          "maximum": 3200000,
+          "default": 3000000
+        },
+        "ringRadiusMinUm": {
+          "type": "integer",
+          "minimum": 400000,
+          "maximum": 3200000,
+          "default": 1800000
+        },
+        "ringShrinkPerTickUm": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000,
+          "default": 4000
+        },
+        "shrinkStartTick": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000,
+          "default": 144
+        },
+        "knockdownsToLose": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 99,
+          "default": 3
+        },
+        "downTicks": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 600,
+          "default": 36
+        },
+        "turnBudgetMs": {
+          "type": "integer",
+          "minimum": 2000,
+          "maximum": 240000,
+          "default": 16000
+        },
+        "attempt1Ms": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 120000,
+          "default": 9000
+        },
+        "retryMs": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 120000,
+          "default": 5000
+        },
+        "turnSpacingMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 120000,
+          "default": 6000
+        },
+        "wallClockBudgetSeconds": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 720,
+          "default": 660
+        },
+        "lobbyJoinTimeoutTicks": {
+          "type": "integer",
+          "minimum": 24,
+          "maximum": 20000,
+          "default": 720
+        },
+        "startWaitTicks": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 20000,
+          "default": 120
+        },
+        "gameOverTicks": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 20000,
+          "default": 72
+        },
+        "fastMode": {
+          "type": "boolean",
+          "default": true
+        },
+        "showPlayerLabels": {
+          "type": "boolean",
+          "default": false
+        },
+        "model": {
+          "type": "string"
+        },
+        "maxOutputTokens": {
+          "type": "integer",
+          "minimum": 64,
+          "maximum": 8192,
+          "default": 900
+        },
+        "speed": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16,
+          "default": 1
+        }
+      }
+    },
+    "results_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "names",
+        "scores",
+        "win",
+        "reason",
+        "endRule",
+        "roundsWon",
+        "rounds"
+      ],
+      "properties": {
+        "names": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "bodies": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "policyKinds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "scores": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "win": {
+          "type": "array",
+          "items": {
+            "type": "boolean"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "roundsWon": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "roundResults": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "round": {
+                "type": "integer"
+              },
+              "winner": {
+                "type": "integer"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "ticks": {
+                "type": "integer"
+              },
+              "knockdowns": {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                },
+                "minItems": 2,
+                "maxItems": 2
+              }
+            }
+          }
+        },
+        "ringOuts": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "knockouts": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "knockdownsSuffered": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "contacts": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "shoveImpulse": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "meanEffortPct": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "llmTurns": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "fallbackTurns": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "rounds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "finalTick": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "complete",
+            "deadline",
+            "fault"
+          ]
+        },
+        "endRule": {
+          "type": "string",
+          "enum": [
+            "match_won",
+            "full_time",
+            "wall_clock",
+            "sim_fault",
+            "host_error"
+          ]
+        },
+        "seed": {
+          "type": "integer"
+        }
+      }
+    },
+    "protocols": {
+      "player": {
+        "type": "text",
+        "value": "THE RING \u2014 the player wire contract.\n\nGET /player?slot=<N>&token=<T> upgrades to a websocket. A slot with a\nconfigured token demands exactly that token; a mismatch is refused 403 and the\nsocket is closed.\n\nA seat sends ONE Sprite v1 chat message carrying its registration and then only\nreceives:\n\n  {\"type\":\"register\",\"prompt\":\"<strategy text or empty>\",\n   \"scripted\":\"pusher\"|\"anchor\"|null,\"policy\":\"<free label>\"}\n\nA non-empty `prompt` makes the seat an LLM seat (capped at 4000 runes at the\ntransport, truncated never rejected, and NEVER written to the replay or the\nresults). `scripted` names a published baseline. A seat that sets neither field,\nor never registers at all, is `pusher`, and the server logs that out loud. The\nregistration is re-sent on a bounded schedule because joins are slot-sequential\nand the lobby sends frames to a socket before it is admitted; the server HOLDS\nan unappliable registration rather than dropping it.\n\nSEATS SEND NO INPUTS. Every command byte is computed server-side by the\ndeterministic controller, so any input mask arriving on a player socket is\ndiscarded. After each received frame the seat sends the Sprite v1 Ready packet\n(0x85), which lets a fastMode server advance the tick as soon as both seats have\nacknowledged the frame.\n\nEach seat receives one binary Sprite v1 frame per tick. The game is\nperfect-information on the physics: the frame carries the ring, the current rim\nradius, both bugs with all eight feet, both tilt gauges and both round tallies.\nBoard labels carry ONLY the anonymous aliases BUG-1 and BUG-2.\n\nEvery 36 ticks (1.5 s) the seat is asked for ONE tactical order. The observation\nit is given is in view coordinates (metres, origin bottom-left, y up, bearings\nin degrees counter-clockwise from east, every number rounded to 2 decimals) and\ncarries: the turn index, the clock, the ring (centre, live radius, minimum\nradius, when the shrink starts, the radius at the round clock), your bug and the\nother bug in full physical detail (position, velocity, speed, heading, spin,\nposture, effort, reach, tilt percent, grounded legs, down ticks, distance from\nthe centre, distance to the rim, all four foot positions), the contact state,\nthe match tallies and round log, the scoring rules, and your own last order.\n\nHIDDEN from every seat with no exception: the other seat's order object, note,\nsay, prompt text, latency, policy kind, policy label and fallback state; which\nentrant holds the other seat; any real player name; `perm`; `config.seed`; the\nRNG state; the future start axes; and the variant name.\n\nTHE REPLY is a single JSON object beginning with '{':\n\n  {\"note\":\"<=160 runes\",\"stance\":\"charge\"|\"brace\"|\"circle\"|\"lift\"|\"retreat\"|\"centre\",\n   \"aim\":\"foe\"|\"centre\"|\"bearing\",\"bearing_deg\":0..359,\"aggression\":0..10,\n   \"posture_bias\":\"low\"|\"even\"|\"high\"|\"auto\",\"lead_ticks\":0..24,\n   \"circle_dir\":-1|1,\"say\":\"<=48 runes\"}\n\nEvery field is REPAIRED rather than rejected: an unrecognised stance keeps last\nturn's, else `charge`; a missing aim is `foe`; numbers are clamped; `note` and\n`say` are truncated on RUNE boundaries. Parsing is tolerant of markdown fences,\nprose prefixes, numeric strings, percentages for `aggression`, radians for\n`bearing_deg`, \"cw\"/\"ccw\" for `circle_dir`, seconds for `lead_ticks`, and the\nsynonyms \"push\" (charge) and \"hold\" (brace). Only when no object with at least\none usable field can be recovered do a single retry and then the scripted\nfallback fire \u2014 no failure mode leaves a bug uncommanded.\n\nAt aggression 10 the autopilot's rim guard is HALVED: an all-in push may put you\nout. That is the documented trade, not a trap.\n"
+      },
+      "global": {
+        "type": "text",
+        "value": "THE RING \u2014 the spectator wire contract.\n\nGET /global (and GET /replay) upgrades to a spectator websocket, which refuses\nany request carrying player credentials. GET /healthz answers `healthy` and keeps\nanswering for a bounded ~20 s after the artifacts are written. GET /client/global\nand GET /client/player serve the real broadcast page and neither opens the player\nsocket. GET /replay-data serves the recorded replay bytes.\n\nA spectator receives the same binary Sprite v1 board stream plus the broadcast\nchrome frame. The chrome rides the SAME binary channel as the board \u2014 as the\nLABEL of a reserved never-drawn 1x1 sprite (id 4090) \u2014 because that is the only\nchannel that survives a hosted replay.\n\nThe chrome frame's keys are:\n\n  t, mt, ph, lob, pl, sp, mx, st, lp, sk, ff, en, mm, bs, pov, teams, roster,\n  events, turn, turns, turnTicks, pb, intents, lead, beats, lulls, over, hold\n\n`teams` has exactly two keys, `bug1` and `bug2`, each carrying the live zero-sum\nscore, round wins, knockdowns suffered, ring-outs, knockouts, contacts, distance\nfrom the centre, tilt percent, whether the bug is down, grounded legs and\nposture. `roster` is spectator-side ONLY and is where the REAL policy names live,\none entry per seat with the bug it drives, its policy kind and its LLM/fallback\nturn counts. `pb` carries the ring (centre, live radius, round-start radius,\nminimum radius), the round (index, tick, clinch target, the round log), both bugs\nwith all four feet and their per-foot grounded/load flags, the last contact and\nthe two scores. `intents` carries the recent order records, which is where a\nspectator SEES the LLM playing.\n\nDerived beat events: phase, round_start, contact, shove, stagger, knockdown,\nrim_slip, ring_out, round_end, match_point, turn_end, gameover. Only knockdown,\nring_out, round_end, match_point and the terminal verdict become SCRUBBER BEATS;\ncontact, shove, stagger and rim_slip fire dozens of times a round and would bury\nthe timeline.\n\nViewer input rides the same socket as Sprite v1 client messages: a chat message\n`s:<tick>` seeks and single characters drive the transport (space, p, P, b, e, r,\nf, '.', ',', and the speed keys 1 2 3 4 8 6).\n\nTHE REPLAY is binary, magic `COWLDPBD`, format version 1, game name\n`physics-bodies`, game version `1`. It carries: the header; the resolved config\nJSON (seed, `perm`, the whole match shape, every geometry and actuation constant,\nthe roster with real names); the joins and leaves; THE ACTION LOG \u2014 one command\nbyte per seat per tick, written on change only; the chat control records\n(`register`, `intent`, `fallback`, `budget_guard`, `round`, `stop`, `result`),\neach a JSON object told apart by a leading '{'; and ONE gameHash per tick. Only\n`stop` is load-bearing at playback \u2014 every other fact re-derives from the action\nlog by re-running the same integer sim, and the hash chain is checked every tick\nin the browser.\n\nThe replay is served by the STATIC wasm bundle\n(`game.replay_viewer.bundle = static-replay-viewer`), never by a pod. The bundle\ncompiles the SAME `src/bodies/sim.nim` under emscripten and re-simulates every\nframe from the recorded bytes.\n\n`tools/replay_summary.py` (Python 3 stdlib only) prints one strict-UTF-8 JSON\nobject for a `.replay` path: protocol, gameVersion, seed, names, aliases, bodies,\npolicyKinds, tickCount, rounds, intents, fallbacks and the full results document.\n"
+      }
+    },
+    "docs": {
+      "readme": {
+        "type": "text",
+        "value": "# cogame-physics-bodies \u2014 THE RING\n\nTwo four-legged robot bugs push each other out of a shrinking sumo ring.\nOff-centre shoves spin you, and a bug that tips over cannot push for a second\nand a half.\n\nEach bug is a 0.60 m torso disc walking on four legs. It pushes by loading the\nleg behind it \u2014 **a leg that has floor under it**. A foot over the rim finds no\nfloor: standing near the edge costs you push and costs you balance. A shove that\nlands off the opponent's centre line **spins** it, and spin, height and being\nlevered under all fill a **tilt gauge**; at full tilt a bug **falls over** and\nlies there for 1.5 s, unable to push and shovable while prone. You lose the round\nthe instant your torso centre crosses the rim, or on your third knockdown \u2014 and\nthe rim comes toward you as the round runs, from 3.00 m down to 1.80 m.\n\nBest of five rounds. Strictly zero sum: `score[0] + score[1] == 0.000`, and the\nreachable range is \u00b13.750.\n\n- **Rules and every constant**: [docs/RULES.md](docs/RULES.md)\n- **Wire protocol**: [docs/PROTOCOL.md](docs/PROTOCOL.md)\n- **Writing a bug order** (the reply schema and both champion prompts):\n  [docs/ORDERS.md](docs/ORDERS.md)\n- **Design note**:\n  [docs/plans/2026-08-28-physics-bodies-design.md](docs/plans/2026-08-28-physics-bodies-design.md)\n\n## A policy is just a prompt\n\nEvery 1.5 seconds your seat is asked, in plain English, what its bug does next;\na deterministic autopilot compiles the answer into one command byte 24 times a\nsecond. Both champions in this coworld are prompt policies \u2014 their whole\nstrategy is the text in `tools/ci/policies.json` \u2014 and both fillers are scripted\nbaselines from the SAME image, switched by one environment variable:\n\n```bash\n# an LLM seat\nPLAYER_PROMPT=\"Win on position, not on violence. \u2026\"  /bin/physics-bodies-player\n# a scripted seat\nPLAYER_SCRIPTED=pusher                               /bin/physics-bodies-player\n```\n\n## Layout\n\n```\nsrc/physics_bodies.nim          the game server entrypoint (seed randomization)\nsrc/physics_bodies_player.nim   the thin seat registrar -> /bin/physics-bodies-player\nsrc/bodies/\n  sim_types.nim   constants, enums, records; GameVersion\n  trig.nim        the committed DirQ12 table + isqrt \u2014 the ONLY trigonometry\n  body.nim        the leg kinematic and the command-byte decode\n  ring.nim        ring geometry, the shrink law, the seeded draws, swept contacts\n  sim.nim         the step loop (\u00a7Resolution order); re-exports the sim modules\n  sim_config.nim  GameConfig lifecycle, update(), configJson()\n  sim_state.nim   gameHash, the lobby, the tier-2 event sink, the guards\n  roster.nim      join/auth and the 21-key results document\n  labels.nim      view-space conversion and sprite labels\n  intents.nim     the order schema, the tolerant parser, the rune discipline\n  control.nim     driveCommand \u2014 one intent -> one command byte per tick\n  baselines.nim   the per-seat observation + `pusher` and `anchor`\n  llm.nim         the Bedrock/Anthropic transport\n  decide.nim      the per-turn ONE PARALLEL BATCH, two deadlines, budget guard\n  global.nim      the board renderer (pixie bakes + sprite protocol)\n  broadcast.nim   the chrome frame and the beat derivation\n  replays.nim     the COWLDPBD codec wrapper, keyframes, the precompute walk\n  replay_runtime.nim  the shared native/wasm playback runtime\n  events.nim      the tier-2 JSON-lines wire format\n  wire_constants.nim  the one-source JS constants block\n  server.nim      mummy HTTP/websockets, the 24 Hz loop, the artifact writes\nreplay-viewer/    the emscripten static bundle (same sim module, in the browser)\nclient/           the broadcast chrome (chrome_common.js is the starter's, byte for byte)\ntests/            15 suites; the determinism gate is inviolable\ntools/            the build hook, CI helpers, the replay forensics script\n```\n\n## Build and run\n\nThe canonical build recipe is the [Dockerfile](Dockerfile). Locally:\n\n```bash\nnimby use 2.2.4\nnimby --global sync nimby.lock\n# rebuild nim.cfg from THIS machine's package tree (the committed one pins the\n# author's paths and is wrong on every other host)\nrm -f nim.cfg\nfor pkg in \"$HOME\"/.nimby/pkgs/*; do\n  if [ -d \"$pkg/src\" ]; then echo \"--path:\\\"$pkg/src\\\"\" >> nim.cfg\n  else echo \"--path:\\\"$pkg\\\"\" >> nim.cfg; fi\ndone\necho '--path:\"src\"' >> nim.cfg\n\nnim c -d:release --path:src -o:physics-bodies src/physics_bodies.nim\nnim c -d:release --path:src -o:physics-bodies-player src/physics_bodies_player.nim\n```\n\nEvery test twice, exactly as CI does:\n\n```bash\nfor t in tests/*.nim; do\n  nim r --hints:off --path:src \"$t\"           # debug: range + overflow checks\n  nim r --hints:off -d:release --path:src \"$t\"\ndone\n```\n\n## The determinism gate\n\nReplays are re-simulated by the **wasm32** build of the same `src/bodies/sim.nim`\nthe **native amd64** server ran, and their per-tick `gameHash` chains must match\nbit for bit. That is why the hashed modules contain **no floating point at all**\n(`tests/test_determinism.nim` greps for it), why the only trigonometry is a\ncommitted 32-entry table plus an integer square root, and why every product or\nquotient of two sim quantities is computed in `int64` and narrowed with an\nexplicit truncating `div`.\n\nIf the gate fails, the physics or a build flag changed. Fix the code, never the\ntest.\n\n## CI\n\n- **`test`** \u2014 every `tests/*.nim` in debug and release.\n- **`docker-smoke`** \u2014 builds the production image and runs one real episode in\n  raw Docker from the certification fixture (`SMOKE_SEATS=2`,\n  `SMOKE_REQUIRE_REPLAY_JSON=0` because the replay is binary), then uploads the\n  replay it produced.\n- **`wasm-viewer`** \u2014 builds the static bundle through the pinned\n  `emscripten/emsdk:4.0.15` container and then **opens it in headless chromium**\n  against that replay. A bundle that builds and never renders is as broken as one\n  that does not build.\n\n## Forensics\n\n```bash\ncurl -sSL \"$replay_url\" -o /tmp/ep.replay\npython3 tools/replay_summary.py /tmp/ep.replay | jq .\n```\n\n`protocol` must read `physics-bodies/v1`; `results.reason` must be `complete` (or\nthe declared-acceptable `deadline`); a champion seat's intents must carry\n`source: \"llm\"` with varying `stance`/`aggression`.\n\n## Licence\n\nMIT. Font licence in [data/FONT_LICENSE.txt](data/FONT_LICENSE.txt).\n"
+      },
+      "pages": [
+        {
+          "id": "rules.md",
+          "title": "Rules",
+          "content": {
+            "type": "text",
+            "value": "# THE RING \u2014 rules\n\nTwo four-legged robot bugs stand in a circular clay ring 6.00 m across and try\nto put each other **out of it**. Best of five rounds. Strictly zero sum.\n\n## Seats\n\n`num_agents` is **2**. One seat drives one bug. In-game a bug is called\n**`BUG-1`** or **`BUG-2`** and nothing else; real policy names exist only\nspectator-side (the scorebug, the endcard, `results.names`).\n\nSeat `s` drives bug `perm[s]`, where `perm` is a permutation of `0..1` drawn\nonce at `t = 0` from `config.seed`. `perm` is written into the replay config\nJSON and into `results.bodies`, and is never visible to any seat.\n\n## The world\n\n| Quantity | Unit |\n|---|---|\n| Position, length, radius | micrometres (\u00b5m), `int32` |\n| Velocity, per-tick impulse | \u00b5m per tick, `int32` |\n| Direction index | 1/32 turn, `0..31`, index `d` = bearing `11.25\u00b0 \u00b7 d` counter-clockwise from east |\n| Heading | milli-index, `0 \u2026 31999` (1000 = one direction index) |\n| Yaw rate | milli-index per tick |\n| Tilt | milli-tip, `0 \u2026 1000` |\n| Unit vectors | Q12 (4096 = 1.0), from the committed `DirQ12` table |\n| Score accumulators | micro-points (1e-6 of a score point), `int64` |\n\nThe whole simulation runs in **integers**. Replays are re-simulated by the\nemscripten/wasm32 build of the same Nim module the native amd64 server ran, and\ntheir per-tick `gameHash` chains must match bit for bit: integers make that true\nby construction rather than by an argument about two builds of libm agreeing.\n`src/bodies/{sim,ring,body,trig,sim_types,sim_config,sim_state}.nim` contain no\nfloating point at all (grep-enforced in CI).\n\n```\nArenaW              = 9_600_000 \u00b5m  (9.60 m)\nArenaH              = 6_400_000 \u00b5m  (6.40 m)\nRingCentre          = (4_800_000, 3_200_000)     -- view (4.80, 3.20) m\nRingRadius0         = 3_000_000 \u00b5m  (3.00 m)     -- 6.00 m across at round start\nRingRadiusMin       = 1_800_000 \u00b5m  (1.80 m)     -- the shrink floor\nShrinkStartTick     = 144            (6.0 s into a round)\nShrinkPerTick       = 4_000 \u00b5m/tick  (0.096 m/s)\nTorsoRadius         =   300_000 \u00b5m  (0.30 m)\nFootRadius          =   110_000 \u00b5m  (0.11 m)\nLegCount            = 4 ; LegBaseIdx = [0, 8, 16, 24]\nReachByPosture      = [620_000, 460_000, 300_000, 540_000] \u00b5m  -- low/even/high/lift\nStartRadius         = 1_900_000 \u00b5m  (1.90 m from centre; the bugs start 3.80 m apart)\n```\n\n**View coordinates** \u2014 the only coordinates a policy or the chrome ever sees \u2014\nare metres with the origin at the arena's **bottom-left** corner, x right,\ny **up**. Bearings are degrees counter-clockwise from east (`0\u00b0 = right`,\n`90\u00b0 = up`), speeds are m/s, and every number shown to a policy is rounded to\n2 decimals.\n\n## The body\n\nOne rigid torso disc plus four legs. There is no joint solver, no inverse\nkinematics and no ragdoll: five collision discs and one leg kinematic that turns\nthe command byte into forces. This is a **reduction**, stated as one.\n\n- **Torso**: centre, velocity, heading, yaw rate, tilt, `downTicks`, radius\n  `TorsoRadius`.\n- **Four legs** mounted at torso-relative direction offsets `[0, 8, 16, 24]`.\n  Leg `k`'s reach is a pure function of the current posture; its foot centre is\n  `p + reach \u00b7 DirQ12[(heading + LegBaseIdx[k]) mod 32] / 4096`.\n- **Grounded**: leg `k` is grounded iff its foot is inside `ringRadiusNow` and\n  `downTicks == 0`. **A foot over the rim finds no floor** \u2014 no push, no balance\n  recovery. Standing near the edge costing you traction and stability is the\n  whole tactical spine of the game.\n\n## Actuation\n\n```\nThrustUnit          =     3_600 \u00b5m/tick^2  -- effort 3, 4 legs grounded, posture 'even'\nTractionMulPct      = [130, 100,  70,  90]\nFricNumPer1024      = [ 40,  26,  16,  32] -- v -= (v * FricNum) div 1024, every tick\nMaxSpeedByPosture   = [ 95_000, 135_000, 165_000, 115_000] \u00b5m/tick\nMaxBodySpeedHard    =   260_000 \u00b5m/tick    -- the post-contact clamp and the fault guard\nYawGainPct          = [ 70, 100, 130,  90]\nYawAccelMilli       =       120 ; MaxYawMilli = 900 ; YawDragNumPer1024 = 180\nRestitution         =     1_200 (Q12; 0.293 rebound)\nShoveUnit           =     6_200 \u00b5m/tick ; ShoveMulPct = [110, 100, 80, 150]\nTipImpulseThreshUm  =    26_000 ; TipPerUmDiv = 40\nLiftTipMilli        =        60 ; LiftSelfTipMilli = 20\nTipRecvMulPct       = [ 60, 100, 140, 100]\nSpinTipMilli        =       600 ; TipRecoverMilli = 26 ; TipDown = 1_000\nDownTicks           =        36  (1.5 s) ; KnockdownsToLose = 3\nCentreTieUm         =    20_000\n```\n\n**Terminal speeds are set by friction, not by the clamp.** `low`\n3600\u00b7130/100 \u00b7 1024/40 = 119 808 (clamped to 95 000), `even` 141 784 (clamped to\n135 000), `high` 161 280 (under its 165 000 clamp), `lift` 103 680 (under its\n115 000 clamp).\n\n## The command byte\n\nOne `uint8` per seat per tick \u2014 the recorded action, and the whole action stream.\n\n```\ndrive   = int(cmd) div 16        # 0..15, a drive BEARING; direction index = 2*drive\nposture = (int(cmd) div 4) mod 4 # 0 = low, 1 = even, 2 = high, 3 = lift\neffort  = int(cmd) mod 4         # 0..3, leg load\n```\n\n16 \u00d7 4 \u00d7 4 is exactly 256, so the byte uses its whole range: no value is\nreserved and no value needs repair. The torso heading follows a yaw servo toward\nthe drive bearing (a bug turns to face where it pushes) and leg reach is a pure\nfunction of posture. Force magnitudes between the four effort levels are reached\nby **duty-cycling** across ticks with an error-diffusion accumulator: 24 bytes a\nsecond is where the continuity lives, not in one byte's amplitude.\n\n## Time and rounds\n\n```\nTargetFps = ReplayFps = 24 ; there are NO substeps\nturnTicks       =   36   (1.5 s)   -- the decision cadence; 60 turns per episode\nroundTicks      =  396   (16.5 s)\nresetTicks      =   36   (1.5 s)   -- the hold between rounds\nmaxRounds       =    5 ; roundsToClinch = 3   (best of five)\nmaxTicks        = 2160   (90.0 s)  = 5 x (396 + 36) = 60 x 36\n```\n\nTurn boundaries live on the **global** tick grid and are not re-aligned when a\nround ends early: re-aligning would make the wall-clock budget a function of how\nthe rounds went, and the budget is what the platform kills you for.\n\n**Round start.** The ring is full; both bugs are placed at rest on a **seeded\nstart axis** at `StartRadius` from the centre, facing each other. Bug 0 takes\nthe drawn axis on even rounds and the opposite end on odd rounds (the **end\nswap**), so no seat owns a side. The ring then shrinks by `ShrinkPerTick` per\ntick once the round tick passes `ShrinkStartTick`, floored at `RingRadiusMin`.\n\n## Resolution order (exact, every tick)\n\n1. **Turn boundary.** On `t mod 36 == 0` while playing, the collected intents\n   become each seat's standing intent and one `intent` chat record per seat goes\n   into the replay. The intent is **not** hashed \u2014 the command bytes it produces\n   are recorded, and those are what the viewer replays.\n2. **Controller compile**, in **body index order** (never seat order).\n   `driveCommand` is a pure function of the sim state, the body index, its\n   seat's intent and the tick, and returns the byte written with\n   `writeInputMaskChange`.\n3. **Ring geometry.** `ringRadiusNow`, then leg reach, the four foot positions\n   and `groundedCount` for both bodies.\n4. **Yaw**, body index order: servo toward the drive bearing, drag, clamp. A\n   prone body skips the self-driven term but keeps drag and the clamp.\n5. **Traction and linear dynamics**: a prone body pushes with nothing and scrubs\n   speed fast; thrust scales with effort, posture traction and `groundedCount`;\n   then friction, the per-posture speed clamp, and `p += v`.\n6. **Body\u2013body contacts.** Ten disc pairs in one fixed order, every test\n   **swept**. Positional split (a prone body takes the whole penetration),\n   normal impulse (equal masses), then the **shove**: a grounded foot with\n   effort pushes the other bug away along the contact normal. The momentum comes\n   from the **floor**, not from the receiver, so a well-planted pusher\n   (`groundedCount == 4`) takes **zero** recoil \u2014 which is exactly why bracing on\n   all four legs before you shove is the right play. Then contact torque (an\n   off-centre hit spins you), tilt load scaled by the receiver's posture, and the\n   `MaxBodySpeedHard` clamp.\n7. **Tilt and knockdown.** Spin above `SpinTipMilli` erodes your own stability;\n   grounded legs recover it; at full tilt the bug goes **Down** for 36 ticks,\n   folds its legs in, cannot push and cannot recover tilt.\n8. **Arena box clamp** \u2014 only reachable after a ring-out, so no coordinate can\n   leave the world.\n9. **Round end**, first to fire: **ring-out** (a torso centre outside\n   `ringRadiusNow`; both outside \u2192 the farther one loses, within `CentreTieUm` \u2192\n   a draw); **knockout** (three knockdowns in one round); **round clock** (fewer\n   knockdowns wins, else closer to the centre, else a draw).\n10. **Score bank** \u2014 one proc, `bankRound`, identical on record and on playback.\n11. **Hash** \u2014 one `gameHash` per tick.\n12. **Episode end**: a clinch (`complete/match_won`), the wall clock\n    (`deadline/wall_clock`), full time (`complete/full_time`), or a tripped\n    invariant (`fault/sim_fault`).\n\nThere is no rescue rule, no difficulty ramp and no stalling timer beyond the\nshrinking ring.\n\n## Scoring\n\n```\nRoundWinMicro   = 1_000_000        (+1.000 for winning a round)\nbonus(ring_out) =   250_000        (+0.250 -- the clean win)\nbonus(knockout) =   250_000        (+0.250 -- three falls)\nbonus(decision) =         0\ndraw            = banked to nobody\n\nraw[s]   = roundMicro[perm[s]] / 1_000_000\nscore[s] = raw[s] - raw[1 - s]\n```\n\n**Higher is better; the two scores sum to exactly 0.000.** There is no time\nbonus, no thrust cost and no participation term. The reachable range is\n`[\u22123.750, +3.750]` (a 3\u20130 sweep of ring-outs).\n\n| Outcome | rounds | raw[0] | raw[1] | score |\n|---|---|---|---|---|\n| 3\u20130 sweep, all ring-outs | 3 | 3.750 | 0.000 | **+3.750 / \u22123.750** |\n| 3\u20131, two ring-outs + one knockout, one decision lost | 4 | 3.750 | 1.000 | **+2.750 / \u22122.750** |\n| 3\u20132, mixed | 5 | 2.750 | 2.250 | **+0.500 / \u22120.500** |\n| 2\u20132 with one draw, full time | 5 | 2.500 | 2.500 | **0.000 / 0.000** |\n| 2\u20133 the other way, all decisions | 5 | 2.000 | 3.000 | **\u22121.000 / +1.000** |\n| Five drawn rounds | 5 | 0.000 | 0.000 | **0.000 / 0.000** |\n\nThe league ranks by **Elo (1000 / K 32)** driven by `results.win`, tie-broken by\nmean `results.scores`. Elo is correct here: this is a strictly two-sided zero-sum\nhead-to-head with a decided winner in every non-drawn episode.\n\n## End conditions\n\n`results.reason` is a closed enum of exactly three values; `results.endRule`\ncarries the detail.\n\n| `reason` | `endRule` | When |\n|---|---|---|\n| `complete` | `match_won` | A bug reaches `roundsToClinch` round wins. The normal good ending. |\n| `complete` | `full_time` | `maxRounds` played, or `maxTicks` reached, with no clinch. |\n| `deadline` | `wall_clock` | `wallClockBudgetSeconds` (660) elapsed first. The sim stops at that tick, banks the round in progress as a **draw**, scores the state as it stands and writes a complete replay up to that tick. |\n| `fault` | `sim_fault` | A step-12 invariant guard tripped. Partial replay written. |\n| `fault` | `host_error` | An unexpected server-side exception. Best-effort artifacts written. |\n\nA seat that never connects does **not** end the episode: the lobby budget\nexpires, the no-show is reported to `COGAME_PLAYER_FAILURE_URI`, its bug is\ndriven by the `pusher` baseline for the whole run, and the match plays to a\nnormal ending.\n"
+          }
+        },
+        {
+          "id": "protocol.md",
+          "title": "Wire protocol",
+          "content": {
+            "type": "text",
+            "value": "# Wire protocol\n\n## The player socket\n\n`GET /player?slot=<N>&token=<T>` upgrades to a websocket. A slot with a\nconfigured token demands exactly that token: a mismatch is refused with 403 and\nthe socket is closed.\n\nA seat sends **one** Sprite v1 chat message carrying its registration, and then\nonly receives:\n\n```json\n{\"type\":\"register\",\"prompt\":\"<strategy text or empty>\",\n \"scripted\":\"pusher\"|\"anchor\"|null,\"policy\":\"<free label>\"}\n```\n\n- `prompt` non-empty \u21d2 this seat is an **LLM seat**. Capped at 4000 runes at the\n  transport (truncated, never rejected) and **never** written to the replay or\n  the results.\n- `scripted` names a baseline. A seat that sets neither field \u2014 or never\n  registers at all \u2014 is `pusher`, and the server says so out loud:\n  `physics-bodies: seat N never registered; driving BUG-<i+1> with pusher`.\n- `policy` is a free label, capped at 48 runes, and is the only part of the\n  registration the replay records.\n\nThe registration is **re-sent** on the starter's schedule (10 re-sends, ~1 s\napart). Joins are slot-sequential, so a seat whose slot is not the next open one\nis not admitted until the lower slots have joined \u2014 and the lobby sends frames to\na socket before it is admitted. The server **holds** an unappliable registration\nrather than dropping it.\n\nAfter each received frame the seat sends the Sprite v1 Ready packet (`0x85`).\nThat is legitimate here in a way it is not for an ordinary player client:\n**seats send no inputs at all** \u2014 the server computes every command byte \u2014 so the\ndead-reckoning hazard the packet can cause cannot arise, and a `fastMode` server\nadvances the tick as soon as both seats have acknowledged the frame. Any input\nmask arriving on a player socket is **discarded**.\n\n## The per-seat frame\n\nOne binary Sprite v1 message per tick. The game is **perfect-information on the\nphysics**: the ring is lit and both bodies are in it, so the frame carries the\nring, the current rim radius, both bugs with all eight feet, both tilt gauges and\nboth round tallies. Board labels carry only `BUG-1` / `BUG-2`;\n`showPlayerLabels` is forced false on the player stream.\n\n## The observation\n\nComposed server-side and handed to the policy (the LLM user message, or the\nscripted baseline's input \u2014 both read the identical object). Numbers are in\n**view coordinates**: metres, origin bottom-left, y up, bearings in degrees\ncounter-clockwise from east, rounded to 2 decimals.\n\n```json\n{\"turn\": 24, \"of\": 60,\n \"clock\": {\"tick\": 864, \"of\": 2160, \"round\": 3, \"of_rounds\": 5,\n           \"round_tick\": 0, \"round_of\": 396, \"round_left_s\": 16.5},\n \"ring\": {\"centre\": [4.80, 3.20], \"radius_m\": 3.00, \"min_radius_m\": 1.80,\n          \"shrink_starts_in_s\": 6.0, \"radius_at_round_end_m\": 1.99},\n \"you\": {\"alias\": \"BUG-1\", \"body\": 0, \"pos\": [3.31, 4.28], \"vel\": [1.02, -0.41],\n         \"speed_m_s\": 1.10, \"heading_deg\": 338.0, \"spin_dps\": -12.4,\n         \"posture\": \"even\", \"effort\": 2, \"reach_m\": 0.46,\n         \"tilt_pct\": 18, \"grounded_legs\": 4, \"down_ticks\": 0,\n         \"dist_from_centre_m\": 1.85, \"dist_to_rim_m\": 1.15,\n         \"feet\": [[3.77, 4.11], [3.14, 3.82], [2.85, 4.45], [3.48, 4.74]]},\n \"foe\": {\"alias\": \"BUG-2\", \"body\": 1, \"pos\": [5.94, 2.40], \"vel\": [-1.31, 0.52],\n         \"speed_m_s\": 1.41, \"heading_deg\": 158.0, \"spin_dps\": 5.1,\n         \"posture\": \"low\", \"effort\": 3, \"reach_m\": 0.62,\n         \"tilt_pct\": 41, \"grounded_legs\": 4, \"down_ticks\": 0,\n         \"dist_from_centre_m\": 1.42, \"dist_to_rim_m\": 1.58,\n         \"bearing_from_you_deg\": 342.0, \"range_m\": 2.90, \"closing_m_s\": 2.31},\n \"contact\": {\"in_contact\": false, \"normal_deg\": null,\n             \"your_impulse_last_turn\": 0.00, \"their_impulse_last_turn\": 0.00},\n \"match\": {\"rounds_won\": {\"you\": 1, \"foe\": 1}, \"to_clinch\": 3,\n           \"knockdowns_this_round\": {\"you\": 0, \"foe\": 0},\n           \"ring_outs\": {\"you\": 1, \"foe\": 0},\n           \"round_log\": [{\"round\": 1, \"winner\": \"BUG-1\", \"reason\": \"ring_out\"}]},\n \"rules\": {\"knockdowns_to_lose\": 3, \"round_win_points\": 1.0,\n           \"ring_out_bonus\": 0.25, \"knockout_bonus\": 0.25, \"zero_sum\": true,\n           \"note\": \"a leg whose foot is over the rim has no floor: no push, no balance recovery\"},\n \"your_last_intent\": {\"stance\": \"charge\", \"aim\": \"foe\", \"bearing_deg\": 0,\n                      \"aggression\": 8, \"posture_bias\": \"auto\", \"lead_ticks\": 6,\n                      \"circle_dir\": 1}}\n```\n\n**Hidden from every seat, with no exception:** the other seat's intent object,\n`note`, `say`, prompt text, latency, policy kind, policy label and fallback\nstate \u2014 a seat sees the other *body's* physical state and nothing about the\n*mind* driving it. (`foe.posture` and `foe.effort` are the physical consequences\nof last tick's byte, visible on the board to any spectator, so withholding them\nwould be a lie about the world.) Also hidden: which entrant holds the other\nseat, any real player name, `perm`, `config.seed`, the RNG state, the future\nstart axes, and the variant name.\n\n## The reply\n\nSee [ORDERS.md](ORDERS.md) for the schema, the per-field caps and the repair\ntable.\n\n## The global socket\n\n`GET /global` (and `GET /replay`) upgrades to a spectator websocket, which\nrefuses any request carrying player credentials. It receives the same binary\nsprite stream plus the broadcast chrome frame, which rides the SAME binary\nchannel as the board \u2014 as the label of a reserved never-drawn 1\u00d71 sprite (id\n4090). That is the only channel that survives a hosted replay.\n\nThe chrome frame's keys above the fold are the starter's and are consumed by the\nbyte-identical `client/chrome_common.js`; everything game-specific is under `pb`\nand `intents`.\n\n```json\n{\"t\": 864, \"mt\": 2160, \"ph\": \"playing\", \"lob\": 0, \"pl\": true, \"sp\": 1,\n \"mx\": 2160, \"st\": 0, \"lp\": false, \"sk\": false, \"ff\": false, \"en\": true,\n \"mm\": -1, \"bs\": 2, \"pov\": -1,\n \"teams\": {\"bug1\": {\"score\": 2.75, \"rounds\": 2, \"knockdowns\": 1,\n                    \"ringOuts\": 1, \"distFromCentre\": 1.85, \"tilt\": 18,\n                    \"down\": false},\n           \"bug2\": {\"\u2026\": \"\u2026\"}},\n \"roster\": [{\"s\": 0, \"name\": \"daveey\", \"team\": \"bug2\", \"alias\": \"BUG-2\",\n             \"body\": 1, \"kind\": \"llm\", \"rounds\": 1, \"knockdowns\": 4,\n             \"contacts\": 41, \"effortPct\": 64}],\n \"events\": [{\"k\": \"knockdown\", \"t\": 851, \"body\": 1, \"count\": 2}],\n \"turn\": 24, \"turns\": 60, \"turnTicks\": 36,\n \"pb\": {\"ring\": {\"centre\": [4.80, 3.20], \"r\": 2.31, \"r0\": 3.00, \"rmin\": 1.80},\n        \"round\": {\"index\": 3, \"of\": 5, \"tick\": 0, \"of_ticks\": 396,\n                  \"toClinch\": 3, \"log\": []},\n        \"bugs\": [{\"i\": 0, \"p\": [3.31, 4.28], \"v\": [1.02, -0.41],\n                  \"heading\": 338.0, \"spin\": -12.4, \"posture\": \"even\",\n                  \"effort\": 2, \"drive\": 11, \"tilt\": 18, \"down\": 0,\n                  \"grounded\": 4,\n                  \"feet\": [{\"p\": [3.77, 4.11], \"g\": true, \"load\": 0}]}],\n        \"contact\": {\"on\": false, \"point\": null, \"normal\": null,\n                    \"impulse\": 0.0, \"lift\": false},\n        \"score\": {\"bug1\": 2.75, \"bug2\": -2.75}},\n \"intents\": [{\"turn\": 24, \"seat\": 0, \"alias\": \"BUG-2\", \"body\": 1,\n              \"source\": \"llm\", \"stance\": \"lift\", \"aggression\": 9,\n              \"note\": \"\u2026\", \"say\": \"getting under it\"}],\n \"lead\": {\"teams\": [\"bug1\", \"bug2\"], \"pts\": [[0, 0, 0]]},\n \"beats\": [{\"t\": 213, \"k\": \"ring_out\"}],\n \"lulls\": [[430, 590]],\n \"over\": {\"winner\": \"bug1\", \"draw\": false, \"timeLimit\": false,\n          \"endRule\": \"match_won\", \"reason\": \"complete\", \"score\": 2.75,\n          \"ticks\": 1608, \"teams\": {\"bug1\": {\"rounds\": 3}}},\n \"hold\": 3}\n```\n\nThere are exactly **two** `teams` keys (`bug1`, `bug2`) \u2014 this is a two-sided\nzero-sum game \u2014 so the chrome's plate loop renders one plate per side. `roster`\ncarries the **real policy names** and is spectator-side only.\n\nViewer input rides the same socket as Sprite v1 client messages: a chat message\n`s:<tick>` seeks, and single characters drive the transport (space, `p`, `P`,\n`b`, `e`, `r`, `f`, `.`, `,`, and the speed keys `1 2 3 4 8 6`).\n\n## Other routes\n\n| Route | Serves |\n|---|---|\n| `GET /healthz` | `healthy` (and keeps answering for ~20 s after the artifacts are written) |\n| `GET /client/global`, `GET /client/player`, `GET /client/replay` | the real broadcast page; neither `/client/` route opens the player socket |\n| `GET /replay-data` | the recorded replay bytes, once written |\n| `GET /client/font.ttf`, `/client/art/**` | the page's own assets |\n\n## The replay\n\nBinary, magic **`COWLDPBD`**, format version 1, game name `physics-bodies`,\ngame version `1`.\n\n| Content | Carries |\n|---|---|\n| header | magic, format version, game name/version, timestamp |\n| config JSON | `seed`, `perm`, `num_agents`, the whole match shape, every geometry and actuation constant, `players[].name` (**real names**), `slots[].alias`, `fastMode` |\n| joins / leaves | per seat: name (real policy name), slot, token |\n| inputs | **the action log**: one command byte per seat per tick, written on change only |\n| chats | `register` / `intent` / `fallback` / `budget_guard` / `round` / `stop` / `result` control records \u2014 each a JSON object, told apart from anything else by a leading `{` |\n| hashes | one `gameHash` per tick \u2014 the integrity chain the viewer re-checks |\n\nOnly **`stop`** is load-bearing at playback: it is the one fact playback cannot\nre-derive from the action log, and it is applied by the same proc the recording\nside used. `round` records re-derive inside `bankRound`, so re-applying one would\ndouble-bank it.\n\n`tools/replay_summary.py` (Python 3 stdlib only, no Nim, no Docker) prints one\nstrict-UTF-8 JSON object for a `.replay` path:\n\n```bash\npython3 tools/replay_summary.py /tmp/ep.replay | jq .\n```\n\n## Tier-2 events\n\nWith `COGAME_EVENTS_URI` set (file:// only), the game writes JSON lines \u2014 one row\nper event (`contact`, `shove`, `stagger`, `knockdown`, `rim_slip`, `ring_out`,\n`round_end`, `intent`, `phase`) plus a mandatory trailing summary row carrying\n`type`, `ticks`, `events` and `gameVersion`.\n"
+          }
+        },
+        {
+          "id": "orders.md",
+          "title": "Writing a bug order",
+          "content": {
+            "type": "text",
+            "value": "# Writing a bug order\n\nA policy is just a prompt. Every **1.5 seconds** (36 ticks) your seat is asked\nwhat its bug does next, and a deterministic autopilot runs that order 24 times a\nsecond: it steers, it leads a moving target, and it keeps you off the rim unless\nyou tell it not to. You choose **what** to do and **how hard**.\n\n## The reply\n\nOne JSON object and nothing else. Your reply MUST begin with `{`.\n\n```json\n{\"note\": \"it is low and braced; circle to put the rim behind it before I commit\",\n \"stance\": \"circle\", \"aim\": \"foe\", \"bearing_deg\": 0,\n \"aggression\": 5, \"posture_bias\": \"even\", \"lead_ticks\": 4, \"circle_dir\": 1,\n \"say\": \"walking it to the edge\"}\n```\n\n## Stances\n\n| stance | what the autopilot does |\n|---|---|\n| `charge` | drive into the other bug where it WILL be in `lead_ticks`, and shove. The bread and butter. |\n| `brace` | plant LOW facing the other bug and absorb. You barely move, you take less tilt, and a bug that charges a brace bounces. |\n| `circle` | orbit the other bug at about 1.40 m in `circle_dir`, trying to end up with the rim behind IT and the centre behind YOU. |\n| `lift` | close and get under it \u2014 the knockdown attempt. Slow, and it loads tilt onto you too. |\n| `retreat` | back toward the ring centre, away from the other bug. |\n| `centre` | walk to the ring centre and hold it. Wins a decision. |\n\n## Fields, caps and repairs\n\n| Field | Type | Cap / legal values | Repair when violated |\n|---|---|---|---|\n| `note` | string | **\u2264 160 runes** | truncated to 160 runes |\n| `stance` | string | closed enum `charge, brace, circle, lift, retreat, centre`, case-insensitive | unrecognised / missing \u2192 last turn's `stance`, else `charge` |\n| `aim` | string | closed enum `foe, centre, bearing`, case-insensitive | unrecognised / missing \u2192 `foe` |\n| `bearing_deg` | integer | finite, taken `mod 360` into `0..359` | non-finite / missing \u2192 last turn's value, else `0` |\n| `aggression` | integer | finite, clamped `[0, 10]` | non-finite / missing \u2192 last turn's value, else `7` |\n| `posture_bias` | string | closed enum `low, even, high, auto`, case-insensitive | unrecognised / missing \u2192 `auto` |\n| `lead_ticks` | integer | finite, clamped `[0, 24]` | non-finite / missing \u2192 `4` |\n| `circle_dir` | integer | `\u22121` or `+1`; any other value takes the sign (`0` \u2192 `+1`) | non-finite / missing \u2192 last turn's value, else `+1` |\n| `say` | string | **\u2264 48 runes** | truncated to 48 runes, then a printable-ASCII filter that also strips a leading `{` |\n\nThree further caps on strings that reach the replay: `register.policy` \u2264 48\nrunes, any recorded error text (`fallback.detail`) \u2264 200 runes, and the whole\nserialized `intent` record \u2264 480 runes. `register.prompt` is capped at 4000\nrunes **at the transport** (over-long is truncated, never rejected) and is never\nwritten to the replay or the results.\n\n**Truncation is on rune (Unicode codepoint) boundaries, never bytes.** Slicing a\nstring by byte index anywhere on the path to the replay is forbidden: a\nbyte-truncated multi-byte character renders in a browser and then fails a strict\nUTF-8 parser.\n\n## Parsing is tolerant\n\nMarkdown fences are stripped; the outermost balanced `{\u2026}` is taken if the model\nprefixed prose; numeric strings are accepted; `aggression` given as a percentage\n(`0..100`) is divided by 10; `bearing_deg` given in radians (`|v| \u2264 6.3` with a\nfractional part) is converted; `circle_dir` accepts `\"cw\"` / `\"ccw\"` /\n`\"left\"` / `\"right\"`; `stance`, `aim` and `posture_bias` are matched\ncase-insensitively and with surrounding whitespace; `lead_ticks` given in\nseconds (a decimal below 2) is multiplied by 24; `stance: \"push\"` reads as\n`charge` and `\"hold\"` as `brace`.\n\nOnly when **no** object with at least one usable field can be recovered do the\nretry and then the scripted fallback fire.\n\n## What the autopilot does with your order\n\n1. **Aim point.** `aim: \"foe\"` \u2192 the other bug's position plus its velocity\n   times `lead_ticks`; `\"centre\"` \u2192 the ring centre; `\"bearing\"` \u2192 4 m along\n   `bearing_deg` from where you stand.\n2. **Goal bearing** from the stance (see the table above).\n3. **The rim guard, always, every stance.** The closer you are to the rim, the\n   more the goal bearing is blended toward the ring centre. **At\n   `aggression: 10` the guard is HALVED** \u2014 you may push yourself out. That is\n   the trade, and it is the only way to order an all-in push.\n4. **Posture.** `low`/`even`/`high` are taken literally. `auto` resolves as:\n   `lift` stance and in contact \u2192 `lift`; `brace` stance \u2192 `low`; more than\n   1.20 m apart \u2192 `high`; in contact \u2192 `low`; else `even`. The rim guard\n   overrides to `low` when it is dominating.\n5. **Effort**, continuous then duty-cycled: `3 \u00d7 aggression / 10`, times 0.35\n   for a `brace` that is not in contact, zero for a `brace` at a standstill, and\n   tapered to zero inside 0.30 m of the goal for `centre` / `retreat`.\n6. **Quantise** to the nearest of the 16 drive bearings and pack the byte.\n\n## Two worked prompts\n\nBoth champions in this coworld are prompt policies. Their whole strategy is the\ntext below.\n\n### `physics-bodies-ringcraft` \u2014 win on position, not on violence\n\n```\nWin on position, not on violence. Read dist_to_rim for BOTH bugs every turn and\ntreat the difference as the score of the fight: whoever is closer to the rim is\nlosing, whatever the round tally says.\nRules, in order. If YOUR dist_to_rim is under 0.60 m, stance \"retreat\" with aim\n\"centre\" and aggression 8 for one turn - nothing else matters, you are one shove\nfrom losing the round. Otherwise, if the other bug's dist_to_rim is under 0.90 m\nAND you are in contact, stance \"charge\" with aim \"foe\", aggression 10,\nlead_ticks 2, posture_bias \"auto\": this is the ring out and it is worth the\nhalved rim guard.\n```\n\n### `physics-bodies-toppler` \u2014 win by putting it on its back\n\n```\nWin by putting it on its back. Three knockdowns takes the round outright and a\ndowned bug cannot push, so every fall is also a free shove toward the rim.\nRules, in order. If YOUR tilt_pct is above 55, stance \"brace\", posture_bias\n\"low\", aggression 3 for one turn and let your legs recover it. Otherwise, if the\nother bug is DOWN (its down_ticks above 0), stance \"charge\", aim \"foe\",\naggression 10, lead_ticks 0: you have about a second of free pushing, spend all\nof it driving it at the nearest rim.\n```\n\n## Field your own\n\n```bash\ncoworld upload-policy coworld-physics-bodies:latest --name my-bug \\\n  --run /bin/physics-bodies-player \\\n  --secret-env PLAYER_PROMPT=\"<your strategy>\"\n```\n\nOr run one of the published scripted baselines instead:\n`PLAYER_SCRIPTED=pusher` (charge, shove whoever is nearer the rim, lift on\ncontact, back off the edge) or `PLAYER_SCRIPTED=anchor` (hold the middle, brace,\nnever initiate).\n"
+          }
+        }
+      ]
+    }
+  },
+  "player": [
+    {
+      "id": "baseline",
+      "type": "player",
+      "name": "Ring Pusher Baseline",
+      "description": "Scripted sumo bug: charge, shove whoever is nearer the rim, lift on contact, and back off the edge. No LLM.",
+      "image": "{{PHYSICS_BODIES_IMAGE}}",
+      "run": [
+        "/bin/physics-bodies-player"
+      ],
+      "env": {
+        "PLAYER_SCRIPTED": "pusher"
+      },
+      "source_url": "https://github.com/Metta-AI/cogame-physics-bodies/tree/main",
+      "resources": {
+        "requests": {
+          "cpu": "100m",
+          "memory": "64Mi"
+        },
+        "limits": {
+          "cpu": "1"
+        }
+      }
+    }
+  ],
+  "variants": [
+    {
+      "id": "default",
+      "name": "The Ring (2 bugs, best of 5)",
+      "description": "Two four-legged bugs, five rounds of 16.5 s in a shrinking 6 m ring, 60 order turns.",
+      "game_config": {
+        "players": [
+          {
+            "name": "BUG-1"
+          },
+          {
+            "name": "BUG-2"
+          }
+        ],
+        "slots": [
+          {
+            "alias": "BUG-1"
+          },
+          {
+            "alias": "BUG-2"
+          }
+        ],
+        "num_agents": 2,
+        "minPlayers": 2,
+        "maxTicks": 2160,
+        "maxGames": 1,
+        "maxRounds": 5,
+        "roundsToClinch": 3,
+        "turnTicks": 36,
+        "roundTicks": 396,
+        "resetTicks": 36,
+        "turnSpacingMs": 6000,
+        "turnBudgetMs": 16000,
+        "attempt1Ms": 9000,
+        "retryMs": 5000,
+        "wallClockBudgetSeconds": 660,
+        "lobbyJoinTimeoutTicks": 720,
+        "fastMode": true
+      }
+    },
+    {
+      "id": "blitz",
+      "name": "Blitz (2 bugs, best of 3)",
+      "description": "Same ring and rules, three rounds, for cheap ladder rounds.",
+      "game_config": {
+        "players": [
+          {
+            "name": "BUG-1"
+          },
+          {
+            "name": "BUG-2"
+          }
+        ],
+        "slots": [
+          {
+            "alias": "BUG-1"
+          },
+          {
+            "alias": "BUG-2"
+          }
+        ],
+        "num_agents": 2,
+        "minPlayers": 2,
+        "maxTicks": 1296,
+        "maxGames": 1,
+        "maxRounds": 3,
+        "roundsToClinch": 2,
+        "turnTicks": 36,
+        "roundTicks": 396,
+        "resetTicks": 36,
+        "turnSpacingMs": 6000,
+        "turnBudgetMs": 16000,
+        "attempt1Ms": 9000,
+        "retryMs": 5000,
+        "wallClockBudgetSeconds": 420,
+        "lobbyJoinTimeoutTicks": 720,
+        "fastMode": true
+      }
+    }
+  ],
+  "certification": {
+    "players": [
+      {
+        "player_id": "baseline"
+      },
+      {
+        "player_id": "baseline"
+      }
+    ],
+    "game_config": {
+      "players": [
+        {
+          "name": "BUG-1"
+        },
+        {
+          "name": "BUG-2"
+        }
+      ],
+      "slots": [
+        {
+          "alias": "BUG-1"
+        },
+        {
+          "alias": "BUG-2"
+        }
+      ],
+      "num_agents": 2,
+      "minPlayers": 2,
+      "seed": 5104773,
+      "maxTicks": 1728,
+      "maxRounds": 4,
+      "roundsToClinch": 4,
+      "maxGames": 1,
+      "turnTicks": 36,
+      "turnBudgetMs": 16000,
+      "turnSpacingMs": 0,
+      "wallClockBudgetSeconds": 180,
+      "lobbyJoinTimeoutTicks": 480,
+      "ringShrinkPerTickUm": 0,
+      "fastMode": true
+    }
+  }
+}

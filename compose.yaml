@@ -1,0 +1,11 @@
+# ONE service, named for the coworld, so the manifest placeholder is
+# {{PHYSICS_BODIES_IMAGE}} (placeholders derive from COMPOSE SERVICE NAMES by
+# uppercasing and replacing "-" with "_"; {{GAME_IMAGE}} is not a thing outside
+# a two-service file — cogame-lantern 0.1.0).
+services:
+  physics-bodies:
+    image: coworld-physics-bodies:latest
+    platform: linux/amd64
+    build:
+      context: .
+      network: host

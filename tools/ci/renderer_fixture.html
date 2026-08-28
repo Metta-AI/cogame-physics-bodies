@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<!--
+  tools/ci/renderer_fixture.html — the FULL-CAP text-path fixture.
+
+  `tools/ci/docker_smoke.sh` runs with no ANTHROPIC_API_KEY, so both seats play
+  scripted and the smoke replay carries only the baselines' short fixed `say`
+  strings. Nothing else in CI would exercise the reserved speech band or the
+  match feed at their documented caps, and a caption with nowhere to go is
+  invisible to the load signal and to the screenshot (cogchemists, 2026-08-24:
+  four speech bubbles drawn at a negative y and clipped to slivers).
+
+  This fixture loads THE REAL index.html of the built bundle in an iframe. It
+  never re-implements the drawing (cogame-particle-worlds 46cf69d): it fetches
+  the page, splices in a shim for ONLY the wasm entry (window.BodiesStaticReplay)
+  so the page boots with no replay and no Worker, and then drives the page's own
+  chrome — scorebug, feed, endcard, relayout() and the appended game block —
+  with a full-cap 48-rune `say` and 160-rune `note` on BOTH seats at once, at
+  360, 620 and 1280 px.
+
+  It is loaded through `tools/ci/viewer_smoke.mjs --url … --strict-text-bounds`,
+  which hooks CanvasRenderingContext2D.fillText/strokeText and fails the job if
+  any string was NEVER drawn inside its canvas. The fixture sets
+  data-replay-loaded on <html> once all three widths have booted, and
+  data-replay-error if its own self-check fails.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>physics-bodies renderer fixture</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #0b0704;
+    color: #f2e8d8;
+    font: 12px/1.4 ui-monospace, monospace;
+  }
+  #widths { display: flex; flex-direction: column; gap: 8px; padding: 8px; }
+  .slot { border: 1px solid #3a2c1e; width: max-content; }
+  .slot > .cap { padding: 2px 6px; color: #e8a33d; }
+  iframe { border: 0; display: block; height: 420px; background: #0b0704; }
+  #verdict { padding: 8px; }
+</style>
+</head>
+<body>
+<div id="widths">
+  <div class="slot"><div class="cap">360 px</div>
+    <iframe id="w360" style="width:360px"></iframe></div>
+  <div class="slot"><div class="cap">620 px</div>
+    <iframe id="w620" style="width:620px"></iframe></div>
+  <div class="slot"><div class="cap">1280 px</div>
+    <iframe id="w1280" style="width:1280px"></iframe></div>
+</div>
+<div id="verdict">booting</div>
+<script>
+'use strict';
+(function () {
+  // ---- the payloads, at exactly the documented caps ---------------------
+  // MaxSayRunes = 48, MaxNoteRunes = 160 (src/bodies/sim_types.nim). The
+  // fixture SELF-CHECKS its own string lengths: a fixture that quietly drifted
+  // below the cap would stop being evidence.
+  var SAY_CAP = 48;
+  var NOTE_CAP = 160;
+
+  function pad(seed, n) {
+    var out = seed;
+    while (out.length < n) out += ' ' + seed;
+    return out.slice(0, n);
+  }
+
+  var SAY = pad('walking it to the edge and holding the middle', SAY_CAP);
+  var NOTE = pad(
+    'it is low and braced at the rim so circle counter-clockwise to put the ' +
+    'rim behind it, then charge at ten and shove through the contact',
+    NOTE_CAP);
+
+  var selfCheck = [];
+  if (Array.from(SAY).length !== SAY_CAP) {
+    selfCheck.push('say is ' + Array.from(SAY).length + ' runes, want ' +
+      SAY_CAP);
+  }
+  if (Array.from(NOTE).length !== NOTE_CAP) {
+    selfCheck.push('note is ' + Array.from(NOTE).length + ' runes, want ' +
+      NOTE_CAP);
+  }
+
+  // The shim, as source text. It runs INSIDE the iframe, before index.html's
+  // own scripts, and reads the two strings off window (spliced in beside it).
+  var SHIM = [
+    '(function () {',
+    '  var tick = 0;',
+    '  function bug(i) {',
+    '    return {',
+    '      i: i, p: [3.31, 4.28], v: [1.02, -0.41], heading: 338.0,',
+    '      spin: -12.4, posture: "even", effort: 2, drive: 11,',
+    '      tilt: 18 + i * 20, down: 0, grounded: 4 - i,',
+    '      alias: "BUG-" + (i + 1),',
+    '      feet: [',
+    '        { p: [3.77, 4.11], g: true, load: 0 },',
+    '        { p: [3.14, 3.82], g: true, load: 2 },',
+    '        { p: [2.85, 4.45], g: true, load: 0 },',
+    '        { p: [3.48, 4.74], g: i === 0, load: 0 }',
+    '      ]',
+    '    };',
+    '  }',
+    '  function seat(s, name, team, body, rounds, kd, contacts, eff, fb) {',
+    '    return { s: s, name: name, pol: name, team: team,',
+    '      alias: "BUG-" + (body + 1), body: body, alive: true,',
+    '      lives: rounds, kind: "llm", rounds: rounds, knockdowns: kd,',
+    '      contacts: contacts, effortPct: eff, llmTurns: 48,',
+    '      fallbackTurns: fb };',
+    '  }',
+    '  function frame(t) {',
+    '    var over = t > 40;',
+    '    return {',
+    '      t: t, mt: 2160, ph: over ? "gameover" : "playing", lob: 0,',
+    '      pl: true, sp: 1, mx: 2160, st: 0, lp: true, sk: false,',
+    '      ff: false, en: true, mm: -1, bs: 2, pov: -1,',
+    '      teams: {',
+    '        bug1: { lives: 2, rounds: 2, score: 2.75, knockdowns: 1,',
+    '          ringOuts: 1, knockouts: 1, contacts: 37,',
+    '          distFromCentre: 1.85, tilt: 18, down: false, grounded: 4,',
+    '          posture: "even", policies: ["physics-bodies-ringcraft"] },',
+    '        bug2: { lives: 1, rounds: 1, score: -2.75, knockdowns: 4,',
+    '          ringOuts: 0, knockouts: 0, contacts: 41,',
+    '          distFromCentre: 1.42, tilt: 41, down: false, grounded: 3,',
+    '          posture: "low", policies: ["physics-bodies-toppler"] }',
+    '      },',
+    '      roster: [',
+    '        seat(0, "physics-bodies-ringcraft", "bug1", 0, 2, 1, 37, 71, 0),',
+    '        seat(1, "physics-bodies-toppler", "bug2", 1, 1, 4, 41, 64, 1)',
+    '      ],',
+    '      events: t === 2 ? [',
+    '        { t: 2, k: "round_start", round: 3, of: 5, radius: 3.0 },',
+    '        { t: 2, k: "knockdown", body: 1, team: "bug2",',
+    '          alias: "BUG-2", count: 2, of: 3 },',
+    '        { t: 2, k: "stagger", body: 0, team: "bug1",',
+    '          alias: "BUG-1", tilt: 62 },',
+    '        { t: 2, k: "rim_slip", body: 1, team: "bug2",',
+    '          alias: "BUG-2", grounded: 3 },',
+    '        { t: 2, k: "ring_out", body: 1, team: "bug2", winner: 0,',
+    '          radius: 2.31 },',
+    '        { t: 2, k: "round_end", round: 3, winner: 0, team: "bug1",',
+    '          reason: "ring_out", ticks: 213 },',
+    '        { t: 2, k: "match_point", body: 0, team: "bug1",',
+    '          alias: "BUG-1" }',
+    '      ] : [],',
+    '      turn: 24, turns: 60, turnTicks: 36,',
+    '      pb: {',
+    '        ring: { centre: [4.80, 3.20], r: 2.31, r0: 3.00, rmin: 1.80 },',
+    '        round: { index: 3, of: 5, tick: 120, of_ticks: 396,',
+    '          toClinch: 3, knockdownsToLose: 3, log: [] },',
+    '        bugs: [bug(0), bug(1)],',
+    '        contact: { on: true, point: [4.2, 3.1], normal: 45.0,',
+    '          impulse: 0.06, lift: true },',
+    '        score: { bug1: 2.75, bug2: -2.75 }',
+    '      },',
+    '      intents: [',
+    '        { turn: 24, seat: 0, alias: "BUG-1", body: 0, source: "llm",',
+    '          stance: "charge", aim: "foe", bearing_deg: 0,',
+    '          aggression: 10, posture_bias: "auto", lead_ticks: 2,',
+    '          circle_dir: 1, note: window.__pbNote, say: window.__pbSay },',
+    '        { turn: 24, seat: 1, alias: "BUG-2", body: 1, source: "llm",',
+    '          stance: "lift", aim: "foe", bearing_deg: 0, aggression: 9,',
+    '          posture_bias: "low", lead_ticks: 0, circle_dir: -1,',
+    '          note: window.__pbNote, say: window.__pbSay }',
+    '      ],',
+    '      lead: { teams: ["bug1", "bug2"],',
+    '        pts: [[0, 0, 0], [213, 1250, 0], [900, 2500, 1000]] },',
+    '      beats: [',
+    '        { t: 213, k: "ring_out", body: 1, team: "bug2", winner: 0,',
+    '          radius: 2.31 },',
+    '        { t: 400, k: "knockdown", body: 1, team: "bug2",',
+    '          alias: "BUG-2", count: 2, of: 3 },',
+    '        { t: 640, k: "round_end", round: 3, winner: 0, team: "bug1",',
+    '          reason: "ring_out", ticks: 213 },',
+    '        { t: 900, k: "match_point", body: 0, team: "bug1",',
+    '          alias: "BUG-1" },',
+    '        { t: 1608, k: "gameover", winner: "bug1", draw: false,',
+    '          tl: false, endRule: "match_won", reason: "complete" }',
+    '      ],',
+    '      lulls: [[430, 590]],',
+    '      over: over ? {',
+    '        winner: "bug1", draw: false, timeLimit: false,',
+    '        endRule: "match_won", reason: "complete", score: 2.75,',
+    '        ticks: 1608,',
+    '        teams: {',
+    '          bug1: { rounds: 3, ringOuts: 2, knockouts: 1, knockdowns: 1,',
+    '            contacts: 37, effortPct: 71, lives: 3 },',
+    '          bug2: { rounds: 1, ringOuts: 0, knockouts: 0, knockdowns: 4,',
+    '            contacts: 41, effortPct: 64, lives: 1 }',
+    '        }',
+    '      } : undefined,',
+    '      hold: over ? 3 : undefined',
+    '    };',
+    '  }',
+    '  window.BodiesStaticReplay = {',
+    '    createCore: function (config) {',
+    '      var timer = null;',
+    '      return {',
+    '        start: function () {',
+    '          if (config.onStatus) config.onStatus("fixture");',
+    '          timer = setInterval(function () {',
+    '            tick += 2;',
+    '            if (config.onText) config.onText(JSON.stringify(frame(tick)));',
+    '            if (tick === 2 && config.onFirstFrame) config.onFirstFrame();',
+    '            if (tick > 60 && timer) { clearInterval(timer); timer = null; }',
+    '          }, 60);',
+    '        },',
+    '        stop: function () { if (timer) clearInterval(timer); },',
+    '        sendCommand: function () {},',
+    '        clickMap: function () {},',
+    '        zoomAt: function () {}, setZoom: function () {},',
+    '        panBy: function () {}, panByMap: function () {},',
+    '        panTo: function () {}, resetView: function () {},',
+    '        attachMinimap: function () {},',
+    '        getTransform: function () {',
+    '          return { scale: 1, offsetX: 0, offsetY: 0, nativeW: 1920,',
+    '            nativeH: 1280, zoom: 1, minZoom: 1, maxZoom: 12,',
+    '            fitScale: 1, focusX: 0, focusY: 0, visW: 1920, visH: 1280 };',
+    '        },',
+    '        setViewportFit: function () {},',
+    '        getPaceStats: function () {',
+    '          return { enabled: false, queued: 0, presented: 0,',
+    '            interval: 41, draws: tick };',
+    '        }',
+    '      };',
+    '    }',
+    '  };',
+    '})();'
+  ].join('\n');
+
+  var booted = 0;
+  var failed = false;
+
+  function fail(message) {
+    if (failed) return;
+    failed = true;
+    document.getElementById('verdict').textContent = 'FIXTURE FAILED: ' +
+      message;
+    document.documentElement.setAttribute('data-replay-error', message);
+  }
+
+  function done() {
+    booted += 1;
+    if (booted < 3 || failed) return;
+    if (selfCheck.length) {
+      fail('self-check: ' + selfCheck.join('; '));
+      return;
+    }
+    document.getElementById('verdict').textContent =
+      'three widths booted; say=' + SAY_CAP + ' runes, note=' + NOTE_CAP +
+      ' runes, both seats at once';
+    // The fixture's OWN load signal: viewer_smoke.mjs waits on this attribute.
+    document.documentElement.setAttribute('data-replay-loaded', 'true');
+  }
+
+  function boot(id, html) {
+    var frame = document.getElementById(id);
+    var payload = '<script>window.__pbSay = ' + JSON.stringify(SAY) +
+      '; window.__pbNote = ' + JSON.stringify(NOTE) + ';<\/script>' +
+      '<script>' + SHIM.replace(/<\//g, '<\\/') + '<\/script>';
+    var patched = html.replace('<head>', '<head>' + payload);
+    if (patched === html) {
+      fail('index.html has no <head> to splice the shim into');
+      return;
+    }
+    var doc = frame.contentDocument;
+    doc.open();
+    doc.write(patched);
+    doc.close();
+    done();
+  }
+
+  if (selfCheck.length) {
+    fail('self-check: ' + selfCheck.join('; '));
+  } else {
+    fetch('index.html')
+      .then(function (response) {
+        if (!response.ok) {
+          throw new Error('index.html returned HTTP ' + response.status);
+        }
+        return response.text();
+      })
+      .then(function (html) {
+        ['w360', 'w620', 'w1280'].forEach(function (id) { boot(id, html); });
+      })
+      .catch(function (error) {
+        fail(String((error && error.message) || error));
+      });
+  }
+})();
+</script>
+</body>
+</html>

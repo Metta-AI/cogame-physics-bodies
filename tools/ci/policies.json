@@ -1,0 +1,35 @@
+[
+  {
+    "name": "physics-bodies-ringcraft",
+    "run": "/bin/physics-bodies-player",
+    "env": {
+      "PLAYER_PROMPT": "Win on position, not on violence. Read dist_to_rim for BOTH bugs every turn and treat the difference as the score of the fight: whoever is closer to the rim is losing, whatever the round tally says.\nRules, in order. If YOUR dist_to_rim is under 0.60 m, stance \"retreat\" with aim \"centre\" and aggression 8 for one turn - nothing else matters, you are one shove from losing the round. Otherwise, if the other bug's dist_to_rim is under 0.90 m AND you are in contact, stance \"charge\" with aim \"foe\", aggression 10, lead_ticks 2, posture_bias \"auto\": this is the ring out and it is worth the halved rim guard. Otherwise, if the other bug's dist_to_rim is under 1.40 m, stance \"charge\", aggression 8, lead_ticks 4, posture_bias \"even\" - close the distance but keep your feet.\nOtherwise, if you are in contact and neither of you is near the rim, stance \"brace\" with posture_bias \"low\" and aggression 6. A brace beats a charge: let it spend itself on you, take the smaller tilt, and let the shrinking ring do the work. Otherwise, if you are further than 1.60 m from the centre, stance \"centre\" with aggression 6 - holding the middle wins every decision and every shrink.\nOtherwise stance \"circle\", circle_dir whichever sign puts the rim behind the other bug (positive if it is above you in y, negative if below), aggression 4, posture_bias \"even\".\nNever set posture_bias \"high\" while in contact and never use \"lift\": a lift loads tilt onto you too, and you do not need falls to win this way.",
+      "PLAYER_POLICY_LABEL": "physics-bodies-ringcraft"
+    }
+  },
+  {
+    "name": "physics-bodies-toppler",
+    "run": "/bin/physics-bodies-player",
+    "env": {
+      "PLAYER_PROMPT": "Win by putting it on its back. Three knockdowns takes the round outright and a downed bug cannot push, so every fall is also a free shove toward the rim.\nRules, in order. If YOUR tilt_pct is above 55, stance \"brace\", posture_bias \"low\", aggression 3 for one turn and let your legs recover it - a bug that falls first gives the round away. If YOUR dist_to_rim is under 0.50 m, stance \"retreat\", aim \"centre\", aggression 9.\nOtherwise, if the other bug is DOWN (its down_ticks above 0), stance \"charge\", aim \"foe\", aggression 10, lead_ticks 0, posture_bias \"even\": you have about a second of free pushing, spend all of it driving it at the nearest rim.\nOtherwise, if you are in contact, stance \"lift\" with aggression 9 and lead_ticks 0. Stay in it: lift only works while you are touching, and the tilt you load takes about a second and a quarter of continuous contact to land.\nOtherwise, if the other bug's tilt_pct is above 40 OR its posture reads \"high\", stance \"charge\", aggression 9, lead_ticks 4, posture_bias \"high\" - it is already unstable, so hit it hard and off-centre rather than squarely.\nOtherwise, if it is further than 1.80 m away, stance \"charge\", aim \"foe\", aggression 7, lead_ticks 8, posture_bias \"even\".\nOtherwise stance \"circle\", circle_dir 1, aggression 5, posture_bias \"even\", waiting for it to commit so you can take the contact on your terms.\nNever brace at aggression above 4 and never charge a bug that is bracing low at aggression 10 - you will bounce and spin, and a spin fills your own tilt.",
+      "PLAYER_POLICY_LABEL": "physics-bodies-toppler"
+    },
+    "player": "ply_bac48eb1-662e-44f8-973d-f3e016dccf5d"
+  },
+  {
+    "name": "physics-bodies-pusher",
+    "run": "/bin/physics-bodies-player",
+    "env": {
+      "PLAYER_SCRIPTED": "pusher",
+      "PLAYER_POLICY_LABEL": "physics-bodies-pusher"
+    }
+  },
+  {
+    "name": "physics-bodies-anchor",
+    "run": "/bin/physics-bodies-player",
+    "env": {
+      "PLAYER_SCRIPTED": "anchor",
+      "PLAYER_POLICY_LABEL": "physics-bodies-anchor"
+    }
+  }
+]
