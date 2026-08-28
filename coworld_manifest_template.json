@@ -624,7 +624,7 @@
       "turnBudgetMs": 16000,
       "turnSpacingMs": 0,
       "wallClockBudgetSeconds": 180,
-      "lobbyJoinTimeoutTicks": 480,
+      "lobbyJoinTimeoutTicks": 1200,
       "ringShrinkPerTickUm": 0,
       "fastMode": true
     }

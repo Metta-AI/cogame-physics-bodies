@@ -397,7 +397,20 @@ CERTIFICATION = {
         "turnBudgetMs": 16000,
         "turnSpacingMs": 0,
         "wallClockBudgetSeconds": 180,
-        "lobbyJoinTimeoutTicks": 480,
+        # 1200 ticks = 50 s of lobby, NOT the design note's 480 (20 s).
+        # 0.1.1's HOSTED smoke ran five episodes: four completed, and the fifth
+        # failed with "player slot 1 never joined the lobby within 480 lobby
+        # ticks (~20s)". The note sized this at 2x its own "~10 s connect"
+        # estimate, which holds for a local `coworld certify` (the local smoke
+        # passes every time) but not for a cold hosted node, where the runner's
+        # own scheduling and image pull sit in front of the seat's connect.
+        # The lobby ticks at real time (fastMode is off while phase == Lobby),
+        # so this is 50 s of wall clock. It does NOT shorten a normal episode:
+        # both seats connect in a few seconds and the prefix is unchanged. In a
+        # genuine no-show it leaves 528 of 1728 ticks for play, still more than
+        # one full round, and the episode is charged to the absent seat through
+        # COGAME_PLAYER_FAILURE_URI exactly as before.
+        "lobbyJoinTimeoutTicks": 1200,
         "ringShrinkPerTickUm": 0,
         "fastMode": True,
     },
