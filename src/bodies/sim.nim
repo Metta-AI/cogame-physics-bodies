@@ -386,7 +386,13 @@ proc resolveContacts(sim: var SimServer) =
           (int64(LiftTipMilli) * int64(pushEffort) div 3'i64) *
             int64(TipRecvMulPct[recvPosture]) div 100'i64)
 
-      ## 6.7 counters + the `contact` event.
+      ## 6.7 counters + the `contact` event. `contacts` counts CONTACT TICKS
+      ## THIS BODY TOOK PART IN, not shoves it received: this loop runs for
+      ## every body the pair's force acts on, and a closing contact has
+      ## `j > 0` on both sides, so a two-sided impulse counts on both bodies —
+      ## while a pair that merely touches with `vn >= 0` and no shove counts on
+      ## neither. That is what `results.contacts` reports, it is hashed, and it
+      ## is applied identically on record and playback (r1 review N7).
       sim.bodies[recvIdx].contacts += 1
       if force >= int64(TipImpulseThreshUm):
         sim.lastFx = ContactFx(tick: int32(sim.tickCount), x: contactX,

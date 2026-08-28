@@ -149,6 +149,11 @@ There are exactly **two** `teams` keys (`bug1`, `bug2`) — this is a two-sided
 zero-sum game — so the chrome's plate loop renders one plate per side. `roster`
 carries the **real policy names** and is spectator-side only.
 
+`contacts` (here and in `results.contacts`) counts the **contact ticks a body
+took part in**, not the shoves it received: a two-sided impulse counts on both
+bugs, and a pair that merely touches with no closing speed and no shove counts
+on neither.
+
 Viewer input rides the same socket as Sprite v1 client messages: a chat message
 `s:<tick>` seeks, and single characters drive the transport (space, `p`, `P`,
 `b`, `e`, `r`, `f`, `.`, `,`, and the speed keys `1 2 3 4 8 6`).
