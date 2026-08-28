@@ -3029,15 +3029,6 @@ button.beat-marker:focus-visible { outline: 1px solid var(--paper); }
     // The ROUND clock and the live ring radius are on screen at ALL times:
     // the shrinking ring has to be a NUMBER, not just a picture. Written after
     // the shared chrome's renderClock, which owns the element otherwise.
-    //
-    // The round/ring line rides its OWN element, #pb-ring inside #scorebug's
-    // #clock, and #clock-caption keeps saying what the timer is ("Round
-    // clock"). Overwriting #clock-caption with the round/ring string -- the
-    // design note's §Readouts 1 -- would have cost the caption that names the
-    // clock, and the inherited renderClock rewrites that caption on every
-    // lobby and game-over frame, so the round/ring text would flicker against
-    // it. Both readouts are on screen instead; #pb-ring sits inside
-    // #scorebug, so no transport rule is touched (r1 review N15).
     var pb = s.pb || {};
     var round = pb.round || {};
     var cap = pbEnsureRingCaption();
