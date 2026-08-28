@@ -347,6 +347,18 @@ proc resolveContacts(sim: var SimServer) =
       if force <= 0:
         continue
       ## 6.5 contact torque: an off-centre hit SPINS you.
+      ##
+      ## SCALING, because it is easy to misread: the force vector handed to
+      ## `crossQ12` is already DESCALED to µm (`force * n / Q12`), and
+      ## `crossQ12` is a plain `rx*fy - ry*fx` with no internal Q12 term, so
+      ## the divisor below carries the Q12 that the descale did not consume.
+      ## Reading `n` as a Q12 unit vector instead would make `delta` 4096x
+      ## larger; both readings saturate the `MaxYawMilli div 2` clamp for any
+      ## contact whose perpendicular force component is above ~1 800 µm/tick at
+      ## a torso-edge lever arm, so this is the same rule at the resolution the
+      ## clamp leaves visible (r1 review N6). It is hashed either way: the
+      ## number here is the recorded one and must not move without a
+      ## GameVersion bump.
       let
         sign = if recvIdx == 0: 1'i64 else: -1'i64
         rx = contactX - sim.bodies[recvIdx].px
