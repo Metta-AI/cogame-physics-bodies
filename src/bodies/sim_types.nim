@@ -60,9 +60,6 @@ const
   MaxPlayers* = 2               ## one seat = one bug; num_agents is 2.
   BodyCount* = 2                ## two bugs in the ring, always.
   LegCount* = 4
-  DiscPairCount* = (LegCount + 1) * (LegCount + 1)
-    ## Five collision discs a side (torso + four feet), so 25 pairs are built
-    ## every tick in one fixed order. `resolveContacts` decides which are live.
 
   ## --- Board render space --------------------------------------------------
   ## 1 board pixel = 5 000 um, so the 9.60 x 6.40 m arena is 1920 x 1280

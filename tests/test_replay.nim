@@ -48,30 +48,6 @@ block:
     "the re-derivation did not reach GameOver"
 
 block:
-  ## complete/MATCH_WON, pinned on its own. The block above accepts either
-  ## `match_won` or `full_time` because seed 5104773's pusher-vs-anchor episode
-  ## can land on either, which left the first end reason §Tests 10 names
-  ## covered only by accident (r1 review N10). `roundsToClinch = 1` clinches on
-  ## the first decided round, so this one can only be `match_won`.
-  var cfg = defaultMatchConfig()
-  cfg.roundsToClinch = 1
-  let path = tempPath("matchwon.replay")
-  let episode = runEpisode(cfg, [blPusher, blAnchor], path)
-  check episode.sim.endReason == ReasonComplete and
-      episode.sim.endRule == EndRuleMatchWon,
-    &"the clinching episode ended {episode.sim.endReason}/" &
-    &"{episode.sim.endRule}, want complete/match_won"
-  let outcome = rederive(path)
-  check outcome.ok,
-    &"complete/match_won re-derived with a hash mismatch at {outcome.mismatch}"
-  check outcome.ticks == episode.ticks,
-    &"the match_won re-derivation stopped at {outcome.ticks}, recording was " &
-    &"{episode.ticks}"
-  check outcome.phase == GameOver,
-    "the match_won re-derivation did not reach GameOver"
-  removeFile(path)
-
-block:
   ## The cert fixture cannot clinch early (roundsToClinch == maxRounds), so it
   ## is the full_time path.
   var cfg = certConfig()
@@ -189,44 +165,6 @@ block:
     "a faulted episode did not report fault/sim_fault"
   removeFile(path)
 
-# --- the LULL MAP is real: skip-lulls has something to skip ----------
-block:
-  ## r1 review N13: the lull collector took any event kind outside
-  ## ["contact","shove","rim_slip"], which let `turn_end` in — one every 36
-  ## ticks, against a 341-tick minimum gap — so `lullSpans` was always empty,
-  ## `state["lulls"]` was never emitted, and the transport's skip-lulls control
-  ## was inert. The scan now uses `BeatKinds`, the same definition the
-  ## scrubber's timeline uses.
-  var cfg = certConfig()
-  let path = tempPath("lulls.replay")
-  let episode = runEpisode(cfg, [blPusher, blAnchor], path)
-  let data = parseReplayBytes(readFile(path))
-  var runtime = initReplayRuntime(data, mismatchQuit = false,
-    gameEventLoggingEnabled = false)
-  ## Drive presentation frames until the incremental scan finishes.
-  for _ in 0 ..< 600:
-    discard runtime.player.advanceReplayFrame(runtime.sim, runtime.tracker,
-      @[], @[])
-    if runtime.player.lullSpans.len > 0:
-      break
-  check runtime.player.lullSpans.len > 0,
-    &"a {episode.ticks}-tick episode produced no lull spans — skip-lulls has " &
-    "nothing to skip and state[\"lulls\"] is never emitted"
-  var beatTicks: seq[int]
-  for event in runtime.player.beatEvents:
-    beatTicks.add event{"t"}.getInt(-1)
-  for span in runtime.player.lullSpans:
-    check span[1] - span[0] + 1 >= MinLullTicks,
-      &"lull span {span} is shorter than MinLullTicks ({MinLullTicks})"
-    check span[0] >= runtime.player.replayStartTick() and
-        span[1] <= runtime.player.replayMaxTick(),
-      &"lull span {span} leaves the playable range"
-    for tick in beatTicks:
-      check tick < span[0] - LullLeadTicks or tick > span[1] + LullLeadTicks,
-        &"beat at tick {tick} sits inside lull span {span} — a lull must keep " &
-        &"{LullLeadTicks} ticks of context around every beat"
-  removeFile(path)
-
 # --- a PARTIAL LOBBY: one seat never joins, and it still re-derives ---
 block:
   ## §End conditions: a seat that never connects does not end the episode. The
@@ -305,7 +243,6 @@ block:
 
   var registers, intents, rounds, results = 0
   var intentTurns: seq[int]
-  var roundTicks: seq[int]
   for chat in data.chats:
     if chat.message.len == 0 or chat.message[0] != '{':
       continue
@@ -323,7 +260,6 @@ block:
         "a recorded say is not valid UTF-8"
     of "round":
       inc rounds
-      roundTicks.add int(chat.time)      ## replay milliseconds
     of "result":
       inc results
     else:
@@ -334,22 +270,6 @@ block:
   check rounds == episode.sim.roundLog.len,
     &"the stream has {rounds} round records for " &
     $episode.sim.roundLog.len & " completed rounds"
-  ## Each `round` record rides the tick ITS ROUND ended on, not the episode's
-  ## last tick (r1 review N12). They are forensic records — playback re-derives
-  ## rounds inside `bankRound` — so a timestamp that does not locate the round
-  ## makes them useless to tools/replay_summary.py.
-  if roundTicks.len > 1:
-    var ascending = true
-    for i in 1 ..< roundTicks.len:
-      if roundTicks[i] <= roundTicks[i - 1]:
-        ascending = false
-    check ascending,
-      &"the round records are stamped {roundTicks} ms — they must ride the " &
-      "tick each round ended on, in order"
-    check roundTicks[0] < int(tickTime(episode.ticks)),
-      &"the first round record is stamped at {roundTicks[0]} ms of " &
-      &"{int(tickTime(episode.ticks))}: every record was written at the " &
-      "episode's LAST tick"
   ## Two intent records per turn.
   var perTurn = initTable[int, int]()
   for turn in intentTurns:

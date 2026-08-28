@@ -73,7 +73,6 @@ proc runEpisode*(config: GameConfig,
     lastIntent: array[BodyCount, BugIntent]
     haveIntent: array[BodyCount, bool]
     lastTurn = -1
-    roundsRecorded = 0
   for i in 0 ..< BodyCount:
     lastIntent[i] = defaultIntent()
   while sim.phase != GameOver and sim.tickCount < maxTicks:
@@ -109,16 +108,12 @@ proc runEpisode*(config: GameConfig,
     sim.step(cmds)
     if replayPath.len > 0:
       writer.writeHash(uint32(sim.tickCount), sim.gameHash())
-      ## Each `round` record on the tick its round ENDED, exactly as the server
-      ## writes them (server.nim `flushRoundRecords`).
-      while roundsRecorded < sim.roundLog.len:
-        let entry = sim.roundLog[roundsRecorded]
-        writer.writeChat(tickTime(sim.tickCount), 0,
-          roundRecord(int(entry.round), int(entry.winner), $entry.reason,
-            int(entry.ticks), entry.knockdowns))
-        inc roundsRecorded
   if replayPath.len > 0:
     writer.writeChat(tickTime(sim.tickCount), 0, resultRecord(sim))
+    for entry in sim.roundLog:
+      writer.writeChat(tickTime(sim.tickCount), 0,
+        roundRecord(int(entry.round), int(entry.winner), $entry.reason,
+          int(entry.ticks), entry.knockdowns))
     writer.closeReplayWriter()
   result.sim = sim
   result.replayPath = replayPath

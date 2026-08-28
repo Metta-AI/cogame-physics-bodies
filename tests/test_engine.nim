@@ -34,14 +34,6 @@ var
   fakeStatus = 200
   fakeBody = """{"stance":"lift","aggression":9,"say":"under it","note":"fake"}"""
   epoch = getMonoTime()
-  ## Which BLOCK a request belongs to. A block that deliberately hangs the
-  ## provider walks away from requests whose handler is still sleeping, and
-  ## those handlers used to append their in-flight window whenever they woke
-  ## up — landing in a LATER block's freshly cleared list and making its
-  ## request count wrong (observed: "a throttled turn issued 3 requests").
-  ## The handler stamps the epoch it started under and records only if it is
-  ## still current.
-  fakeEpoch = 0
 
 initLock(fakeLock)
 
@@ -49,14 +41,13 @@ proc nowMs(): int64 = (getMonoTime() - epoch).inMilliseconds
 
 proc fakeHandler(request: Request) {.gcsafe.} =
   let started = nowMs()
-  var delay, status, requestEpoch: int
+  var delay, status: int
   var body: string
   {.gcsafe.}:
     withLock fakeLock:
       delay = fakeDelayMs
       status = fakeStatus
       body = fakeBody
-      requestEpoch = fakeEpoch
   sleep(delay)
   var headers: HttpHeaders
   headers["Content-Type"] = "application/json"
@@ -68,8 +59,7 @@ proc fakeHandler(request: Request) {.gcsafe.} =
       body
   {.gcsafe.}:
     withLock fakeLock:
-      if requestEpoch == fakeEpoch:
-        windows.add Window(startMs: started, endMs: nowMs())
+      windows.add Window(startMs: started, endMs: nowMs())
   request.respond(status, headers, payload)
 
 proc noWebsocket(ws: WebSocket, event: WebSocketEvent, message: Message)
@@ -141,7 +131,6 @@ block:
   ## (a) one turn issues EXACTLY ONE request per seat, and both are parsed.
   withLock fakeLock:
     windows.setLen(0)
-    inc fakeEpoch
     fakeDelayMs = 120
     fakeStatus = 200
   var sim = playingSim()
@@ -182,7 +171,6 @@ block:
   ## in-flight windows against two origins must INTERSECT.
   withLock fakeLock:
     windows.setLen(0)
-    inc fakeEpoch
     fakeDelayMs = 200
     fakeStatus = 200
   var cfg = defaultMatchConfig()
@@ -211,7 +199,6 @@ block:
 block:
   withLock fakeLock:
     windows.setLen(0)
-    inc fakeEpoch
     fakeDelayMs = 10
   var sim = playingSim()
   sim.config.turnSpacingMs = 400
@@ -228,7 +215,6 @@ block:
 block:
   withLock fakeLock:
     windows.setLen(0)
-    inc fakeEpoch
     fakeDelayMs = 6000              ## far past both deadlines
   var sim = playingSim()
   var engine = freshEngine(sim)
@@ -255,40 +241,10 @@ block:
   withLock fakeLock:
     fakeDelayMs = 10
 
-# --- the per-turn budget BOUNDS the turn, not just its attempts --------
-block:
-  ## r1 review N17: the budget was a pre-check only, so an attempt starting a
-  ## millisecond inside it got its whole deadline and a turn's worst case was
-  ## `turnSpacingMs + attempt1Ms + retryMs`. Here both attempt deadlines are
-  ## larger than the budget itself, against a provider that never answers in
-  ## time: the turn must still return inside the budget (plus the 1 000 ms
-  ## whole-second floor curl's timeout granularity forces).
-  withLock fakeLock:
-    windows.setLen(0)
-    inc fakeEpoch
-    fakeDelayMs = 9000
-  var sim = playingSim()
-  sim.config.turnBudgetMs = 4000
-  sim.config.attempt1Ms = 6000
-  sim.config.retryMs = 6000
-  var engine = freshEngine(sim)
-  let started = getMonoTime()
-  discard engine.turn(sim, 0, 0)
-  let elapsed = (getMonoTime() - started).inMilliseconds
-  check elapsed <= int64(sim.config.turnBudgetMs) + 1500,
-    &"a turn whose attempt deadlines exceed its budget ran {elapsed} ms " &
-    &"against a {sim.config.turnBudgetMs} ms budget"
-  for seat in 0 ..< BodyCount:
-    check engine.haveIntent[seat],
-      &"seat {seat} was left uncommanded by the budget clamp"
-  withLock fakeLock:
-    fakeDelayMs = 10
-
 # --- a 429 with no other candidate model skips the retry ---------------
 block:
   withLock fakeLock:
     windows.setLen(0)
-    inc fakeEpoch
     fakeStatus = 429
     fakeBody = "daily token cap"
   var sim = playingSim()

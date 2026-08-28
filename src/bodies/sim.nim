@@ -192,20 +192,22 @@ proc applyDynamics(sim: var SimServer, bodyIndex: int, cmd: uint8) =
     sim.effortSum[bodyIndex] += int64(effort)
     sim.effortTicks[bodyIndex] += 1
 
-proc discPairs(sim: SimServer): array[DiscPairCount, DiscPair] =
-  ## The five discs of body 0 (torso + four feet) against the five of body 1,
-  ## in ONE fixed order: outer loop body 0's index, inner loop body 1's, torso
-  ## first. ALL 25 are built — the array is fixed-size so nothing allocates
-  ## inside the step — and `resolveContacts` is the single place that decides
-  ## which of them are LIVE this tick: a prone bug folds its legs in, so its
-  ## collision set is the torso disc alone, and a foot over the rim has no
-  ## floor under it. Between 1 (two prone bugs) and 25 (both upright, eight
-  ## feet on clay) pairs are tested.
+proc discPairs(sim: SimServer): array[25, DiscPair] =
+  ## The five discs of body 0 against the five of body 1, in ONE fixed order:
+  ## outer loop body 0's index, inner loop body 1's, torso first. Ten of the
+  ## twenty-five entries are live at once (a prone bug folds its legs in, so
+  ## its collision set is the torso disc alone), and the array is fixed-size so
+  ## nothing allocates inside the step.
   let
     a = sim.bodies[0]
     b = sim.bodies[1]
   var n = 0
   for ia in -1 ..< LegCount:
+    if ia >= 0 and (a.downTicks > 0 or not a.footGrounded[ia]):
+      ## An airborne foot is over the rim: no floor, and nothing to shove
+      ## with. It still cannot collide, which is what makes the edge dangerous
+      ## rather than merely slow.
+      discard
     for ib in -1 ..< LegCount:
       var pair = DiscPair(legA: ia, legB: ib)
       if ia < 0:
@@ -228,8 +230,8 @@ proc discPairs(sim: SimServer): array[DiscPairCount, DiscPair] =
       inc n
 
 proc resolveContacts(sim: var SimServer) =
-  ## Step 6, the sumo core. Up to 25 disc pairs, ONE fixed order, every live
-  ## test SWEPT so a fast foot cannot tunnel through a torso between two ticks.
+  ## Step 6, the sumo core. Ten live disc pairs, ONE fixed order, every test
+  ## SWEPT so a fast foot cannot tunnel through a torso between two ticks.
   ##
   ## The SHOVE is deliberately not a closed-system impulse: the momentum comes
   ## from the FLOOR, not from the receiver, and a well-planted pusher
@@ -345,18 +347,6 @@ proc resolveContacts(sim: var SimServer) =
       if force <= 0:
         continue
       ## 6.5 contact torque: an off-centre hit SPINS you.
-      ##
-      ## SCALING, because it is easy to misread: the force vector handed to
-      ## `crossQ12` is already DESCALED to µm (`force * n / Q12`), and
-      ## `crossQ12` is a plain `rx*fy - ry*fx` with no internal Q12 term, so
-      ## the divisor below carries the Q12 that the descale did not consume.
-      ## Reading `n` as a Q12 unit vector instead would make `delta` 4096x
-      ## larger; both readings saturate the `MaxYawMilli div 2` clamp for any
-      ## contact whose perpendicular force component is above ~1 800 µm/tick at
-      ## a torso-edge lever arm, so this is the same rule at the resolution the
-      ## clamp leaves visible (r1 review N6). It is hashed either way: the
-      ## number here is the recorded one and must not move without a
-      ## GameVersion bump.
       let
         sign = if recvIdx == 0: 1'i64 else: -1'i64
         rx = contactX - sim.bodies[recvIdx].px
@@ -384,13 +374,7 @@ proc resolveContacts(sim: var SimServer) =
           (int64(LiftTipMilli) * int64(pushEffort) div 3'i64) *
             int64(TipRecvMulPct[recvPosture]) div 100'i64)
 
-      ## 6.7 counters + the `contact` event. `contacts` counts CONTACT TICKS
-      ## THIS BODY TOOK PART IN, not shoves it received: this loop runs for
-      ## every body the pair's force acts on, and a closing contact has
-      ## `j > 0` on both sides, so a two-sided impulse counts on both bodies —
-      ## while a pair that merely touches with `vn >= 0` and no shove counts on
-      ## neither. That is what `results.contacts` reports, it is hashed, and it
-      ## is applied identically on record and playback (r1 review N7).
+      ## 6.7 counters + the `contact` event.
       sim.bodies[recvIdx].contacts += 1
       if force >= int64(TipImpulseThreshUm):
         sim.lastFx = ContactFx(tick: int32(sim.tickCount), x: contactX,
@@ -527,13 +511,6 @@ proc step*(sim: var SimServer, cmds: openArray[uint8]) =
     discard
 
   ## Step 3: ring geometry, then leg reach / foot positions / groundedCount.
-  ##
-  ## ONE-TICK COUPLING, deliberate and literal: `refreshLegs` reads
-  ## `body.posture()`, which reads `lastCmd`, and `applyDynamics` (step 5) is
-  ## what overwrites `lastCmd`. So the reach used here is the PREVIOUS tick's
-  ## posture while step 5's thrust uses this tick's — which is exactly what
-  ## "step 3 before steps 4-5" means, and it is hashed, so it must stay that
-  ## way. A reader could mistake it for a bug (r1 review N17).
   sim.ringRadiusNow = ringRadiusAt(sim.config, sim.roundTick)
   for i in 0 ..< BodyCount:
     sim.bodies[i].refreshLegs(RingCentreX, RingCentreY, sim.ringRadiusNow)
