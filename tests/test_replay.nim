@@ -189,6 +189,44 @@ block:
     "a faulted episode did not report fault/sim_fault"
   removeFile(path)
 
+# --- the LULL MAP is real: skip-lulls has something to skip ----------
+block:
+  ## r1 review N13: the lull collector took any event kind outside
+  ## ["contact","shove","rim_slip"], which let `turn_end` in — one every 36
+  ## ticks, against a 341-tick minimum gap — so `lullSpans` was always empty,
+  ## `state["lulls"]` was never emitted, and the transport's skip-lulls control
+  ## was inert. The scan now uses `BeatKinds`, the same definition the
+  ## scrubber's timeline uses.
+  var cfg = certConfig()
+  let path = tempPath("lulls.replay")
+  let episode = runEpisode(cfg, [blPusher, blAnchor], path)
+  let data = parseReplayBytes(readFile(path))
+  var runtime = initReplayRuntime(data, mismatchQuit = false,
+    gameEventLoggingEnabled = false)
+  ## Drive presentation frames until the incremental scan finishes.
+  for _ in 0 ..< 600:
+    discard runtime.player.advanceReplayFrame(runtime.sim, runtime.tracker,
+      @[], @[])
+    if runtime.player.lullSpans.len > 0:
+      break
+  check runtime.player.lullSpans.len > 0,
+    &"a {episode.ticks}-tick episode produced no lull spans — skip-lulls has " &
+    "nothing to skip and state[\"lulls\"] is never emitted"
+  var beatTicks: seq[int]
+  for event in runtime.player.beatEvents:
+    beatTicks.add event{"t"}.getInt(-1)
+  for span in runtime.player.lullSpans:
+    check span[1] - span[0] + 1 >= MinLullTicks,
+      &"lull span {span} is shorter than MinLullTicks ({MinLullTicks})"
+    check span[0] >= runtime.player.replayStartTick() and
+        span[1] <= runtime.player.replayMaxTick(),
+      &"lull span {span} leaves the playable range"
+    for tick in beatTicks:
+      check tick < span[0] - LullLeadTicks or tick > span[1] + LullLeadTicks,
+        &"beat at tick {tick} sits inside lull span {span} — a lull must keep " &
+        &"{LullLeadTicks} ticks of context around every beat"
+  removeFile(path)
+
 # --- a PARTIAL LOBBY: one seat never joins, and it still re-derives ---
 block:
   ## §End conditions: a seat that never connects does not end the episode. The
