@@ -69,10 +69,12 @@ const
   ## Bubbles are NEVER positioned relative to a bug: text laid out relative to
   ## a body near the top of the arena draws at a negative coordinate and a
   ## canvas accepts it silently (cogchemists, 2026-08-24).
-  BubbleBandTopPx = 20
-  BubbleBandHeightPx = 120
-  BubbleWidthPx = 880
-  BubbleFontPx = 26.0
+  ## Exported so tests/test_text_bounds.nim can measure the baked band against
+  ## the reservation it is sized from rather than against a copy of it.
+  BubbleBandTopPx* = 20
+  BubbleBandHeightPx* = 120
+  BubbleWidthPx* = 880
+  BubbleFontPx* = 26.0
 
   ShoutZoomBaseW = 1235.0
   ShoutZoomBaseH = 659.0
