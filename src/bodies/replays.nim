@@ -78,6 +78,12 @@ export replayCodec
 const
   ReplayKeyframeTicks* = 100
   ReplayEndHoldSeconds* = 10
+  BeatKinds* = ["knockdown", "ring_out", "round_end", "match_point",
+                "round_start", "gameover"]
+    ## What counts as a BEAT — for the scrubber's timeline and for the lull
+    ## scan, which must agree. §Record and event vocabulary: `contact`,
+    ## `shove`, `stagger` and `rim_slip` are not beats, and neither is the
+    ## `turn_end` tick marker.
   LullLeadTicks* = 2 * ReplayFps
   MinLullTicks* = 6 * ReplayFps
   LullSpeedBoost* = 8
@@ -396,14 +402,20 @@ proc advanceReplayScan*(replay: var ReplayPlayer, maxTicks: int) =
     var stepBeats = newJArray()
     scan.sim.stepEvents(scan.beatTracker, stepBeats)
     for event in stepBeats:
-      ## The scrubber's up-front timeline. `contact`, `shove`, `stagger` and
-      ## `rim_slip` stay OUT: they fire dozens of times a round and would bury
-      ## the beats.
-      if event["k"].getStr() in ["knockdown", "ring_out", "round_end",
-          "match_point", "round_start", "gameover"]:
+      ## The scrubber's up-front timeline. `contact`, `shove`, `stagger`,
+      ## `rim_slip` and `turn_end` stay OUT: they fire dozens of times a round
+      ## and would bury the beats.
+      if event["k"].getStr() in BeatKinds:
         replay.beatEvents.add(event)
     for event in stepBeats:
-      if event["k"].getStr() notin ["contact", "shove", "rim_slip"]:
+      ## The LULL scan uses the SAME definition of a beat as the timeline. It
+      ## used to take any kind outside ["contact","shove","rim_slip"], which let
+      ## `turn_end` in — and `turn_end` fires every `turnTicks` (36) ticks,
+      ## while a lull span needs a beat-free stretch of 341 ticks. So no span
+      ## ever qualified, `lullSpans` was always empty, `state["lulls"]` was
+      ## never emitted and the transport's skip-lulls control did nothing at all
+      ## (r1 review N13).
+      if event["k"].getStr() in BeatKinds:
         scan.beatTicks.add(scan.sim.tickCount)
         break
     if scan.sim.tickCount mod scan.interval == 0 or
