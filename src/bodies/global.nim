@@ -420,7 +420,10 @@ var
   boardTypefaceCache: Typeface
   mapBandsCache: seq[uint8]
   mapBandsDefs: seq[SpriteDefinition]
-  spriteCache = initTable[int, tuple[w, h: int, pixels: seq[uint8]]]()
+  spriteCache = initTable[(int, int), tuple[w, h: int, pixels: seq[uint8]]]()
+    ## Keyed by (spriteId, boardScale): the SAME sprite id is baked at 1x for
+    ## the player streams and at RenderScale for the spectator board, and a
+    ## scale-blind cache would hand one scale's pixels to the other.
 
 proc boardTypeface(): Typeface =
   if boardTypefaceCache.isNil:
@@ -514,7 +517,9 @@ proc newRgba(w, h: int): seq[uint8] = newSeq[uint8](w * h * 4)
 proc textPixels(text: string, w, h: int, size: float, color: ColorRGBX,
                 bg: ColorRGBX, bgAlpha: int): seq[uint8] =
   ## A text plate baked with `data/font.ttf` through pixie, returned as straight
-  ## RGBA for the wire.
+  ## RGBA for the wire. `w`, `h` and `size` arrive already multiplied by
+  ## `boardScale`; the padding scales with them.
+  let pad = float32(boardScale)
   var image = newImage(w, h)
   image.fill(rgbx(0, 0, 0, 0))
   if bgAlpha > 0:
@@ -525,8 +530,8 @@ proc textPixels(text: string, w, h: int, size: float, color: ColorRGBX,
   font.size = size
   font.paint = rgbx(color.r, color.g, color.b, 255)
   let arrangement = typeset(@[newSpan(text, font)],
-    bounds = vec2(float32(w) - 16.0, float32(h) - 8.0))
-  image.fillText(arrangement, translate(vec2(8.0, 4.0)))
+    bounds = vec2(float32(w) - 16.0 * pad, float32(h) - 8.0 * pad))
+  image.fillText(arrangement, translate(vec2(8.0 * pad, 4.0 * pad)))
   result = newRgba(w, h)
   let data = image.data
   for i in 0 ..< w * h:
@@ -601,23 +606,32 @@ proc bakeTorso(bodyIndex, posture: int, down: bool): tuple[w, h: int,
   ## The bug hull. Posture reads from the LEGS (they are drawn at their actual
   ## computed foot positions), so the hull carries the identity colour, the
   ## posture ring width and, when it is Down, a folded prone plate.
+  ##
+  ## EVERY board bake multiplies its pixel geometry by `boardScale`, because
+  ## `addBoardObject` multiplies its PLACEMENTS by `boardScale` and the map
+  ## plate is baked at `MapWidth * boardScale`. A sprite baked at 1x on a 2x
+  ## layer draws at HALF its physical size — a 0.30 m bug hull reading as
+  ## 0.15 m, with contact happening across a visible gap.
   let
-    size = int(2 * TorsoRadius div UmPerPixel) + 8
+    k = boardScale
+    size = (int(2 * TorsoRadius div UmPerPixel) + 8) * k
     pal = BugPalettes[bodyIndex]
     c = float(size) / 2.0
-    r = float(TorsoRadius div UmPerPixel)
+    r = float(TorsoRadius div UmPerPixel) * float(k)
   result.w = size
   result.h = size
   result.pixels = newRgba(size, size)
   if down:
     ## Prone: a flattened, dimmed plate with a countdown pip ring.
     fillDisc(result.pixels, size, size, c, c, r * 0.86, pal.hull, 210)
-    strokeRing(result.pixels, size, size, c, c, r * 0.86, 3.0, pal.rim, 140)
-    strokeRing(result.pixels, size, size, c, c, r * 0.5, 2.0, DangerInk, 220)
+    strokeRing(result.pixels, size, size, c, c, r * 0.86, 3.0 * float(k),
+      pal.rim, 140)
+    strokeRing(result.pixels, size, size, c, c, r * 0.5, 2.0 * float(k),
+      DangerInk, 220)
     return
   fillDisc(result.pixels, size, size, c, c, r, pal.hull, 255)
-  strokeRing(result.pixels, size, size, c, c, r - 1.0,
-    (case posture
+  strokeRing(result.pixels, size, size, c, c, r - float(k),
+    float(k) * (case posture
      of 0: 7.0      ## low  — a wide, heavy rim
      of 1: 5.0
      of 2: 3.0      ## high — a thin, tall rim
@@ -630,64 +644,71 @@ proc bakeNose(bodyIndex: int): tuple[w, h: int, pixels: seq[uint8]] =
   ## The heading marker: a bright wedge placed AHEAD of the hull, so facing is
   ## legible without baking 32 rotations of the torso.
   let
-    size = 26
+    k = boardScale
+    size = 26 * k
     pal = BugPalettes[bodyIndex]
   result.w = size
   result.h = size
   result.pixels = newRgba(size, size)
   fillDisc(result.pixels, size, size, float(size) / 2.0, float(size) / 2.0,
-    9.0, pal.glow, 235)
+    9.0 * float(k), pal.glow, 235)
   fillDisc(result.pixels, size, size, float(size) / 2.0, float(size) / 2.0,
-    4.0, ChalkInk, 255)
+    4.0 * float(k), ChalkInk, 255)
 
 proc bakeFoot(bodyIndex: int, grounded, loaded: bool):
     tuple[w, h: int, pixels: seq[uint8]] =
   ## A foot. A foot over the rim goes DARK and draws no dust — "no floor",
   ## legible without a caption.
   let
-    size = int(2 * FootRadius div UmPerPixel) + 8
+    k = boardScale
+    size = (int(2 * FootRadius div UmPerPixel) + 8) * k
     pal = BugPalettes[bodyIndex]
     c = float(size) / 2.0
-    r = float(FootRadius div UmPerPixel)
+    r = float(FootRadius div UmPerPixel) * float(k)
   result.w = size
   result.h = size
   result.pixels = newRgba(size, size)
   if not grounded:
     fillDisc(result.pixels, size, size, c, c, r, BoardInk, 210)
-    strokeRing(result.pixels, size, size, c, c, r, 2.0, pal.leg, 110)
+    strokeRing(result.pixels, size, size, c, c, r, 2.0 * float(k), pal.leg, 110)
     return
   fillDisc(result.pixels, size, size, c, c, r, pal.leg, 255)
   if loaded:
-    strokeRing(result.pixels, size, size, c, c, r, 3.0, pal.glow, 255)
+    strokeRing(result.pixels, size, size, c, c, r, 3.0 * float(k), pal.glow, 255)
     fillDisc(result.pixels, size, size, c, c, r * 0.45, pal.glow, 220)
 
 proc bakeShin(bodyIndex: int): tuple[w, h: int, pixels: seq[uint8]] =
   let
-    size = 12
+    k = boardScale
+    size = 12 * k
     pal = BugPalettes[bodyIndex]
   result.w = size
   result.h = size
   result.pixels = newRgba(size, size)
   fillDisc(result.pixels, size, size, float(size) / 2.0, float(size) / 2.0,
-    4.5, pal.leg, 235)
+    4.5 * float(k), pal.leg, 235)
 
 proc bakeDust(stage: int): tuple[w, h: int, pixels: seq[uint8]] =
-  let size = 34 + stage * 8
+  let
+    k = boardScale
+    size = (34 + stage * 8) * k
   result.w = size
   result.h = size
   result.pixels = newRgba(size, size)
-  let c = float(size) / 2.0
-  fillDisc(result.pixels, size, size, c, c, c - 2.0, ClayInk,
-    110 - stage * 30)
-  fillDisc(result.pixels, size, size, c, c, (c - 2.0) * 0.6, ClayInk,
+  let
+    c = float(size) / 2.0
+    edge = c - 2.0 * float(k)
+  fillDisc(result.pixels, size, size, c, c, edge, ClayInk, 110 - stage * 30)
+  fillDisc(result.pixels, size, size, c, c, edge * 0.6, ClayInk,
     140 - stage * 35)
 
 proc bakeTilt(bodyIndex, bucket: int): tuple[w, h: int, pixels: seq[uint8]] =
   ## The tilt gauge — THE FALL, MADE VISIBLE. An arc over each bug that fills
   ## with tilt, turns amber above 50 % and flashes above 80 %.
   let
-    w = 96
-    h = 34
+    k = boardScale
+    w = 96 * k
+    h = 34 * k
     pal = BugPalettes[bodyIndex]
     pct = bucket * 10
   result.w = w
@@ -695,8 +716,8 @@ proc bakeTilt(bodyIndex, bucket: int): tuple[w, h: int, pixels: seq[uint8]] =
   result.pixels = newRgba(w, h)
   let
     cx = float(w) / 2.0
-    cy = float(h) - 3.0
-    r = 26.0
+    cy = float(h) - 3.0 * float(k)
+    r = 26.0 * float(k)
     ink =
       if pct >= 80: DangerInk
       elif pct >= 50: ColorRGBX(r: 232, g: 163, b: 61, a: 255)
@@ -707,7 +728,7 @@ proc bakeTilt(bodyIndex, bucket: int): tuple[w, h: int, pixels: seq[uint8]] =
     let
       x = cx + cos(a) * r
       y = cy - sin(a) * r
-    fillDisc(result.pixels, w, h, x, y, 2.0, ChalkInk, 70)
+    fillDisc(result.pixels, w, h, x, y, 2.0 * float(k), ChalkInk, 70)
   ## Fill.
   let lit = (48 * pct) div 100
   for i in 0 ..< lit:
@@ -715,51 +736,66 @@ proc bakeTilt(bodyIndex, bucket: int): tuple[w, h: int, pixels: seq[uint8]] =
     let
       x = cx + cos(a) * r
       y = cy - sin(a) * r
-    fillDisc(result.pixels, w, h, x, y, 3.0, ink, 255)
+    fillDisc(result.pixels, w, h, x, y, 3.0 * float(k), ink, 255)
 
 proc bakeBurst(stage: int): tuple[w, h: int, pixels: seq[uint8]] =
-  let size = 60 + stage * 26
+  let
+    k = boardScale
+    size = (60 + stage * 26) * k
   result.w = size
   result.h = size
   result.pixels = newRgba(size, size)
-  let c = float(size) / 2.0
-  strokeRing(result.pixels, size, size, c, c, c - 4.0, 5.0, ChalkInk,
+  let
+    c = float(size) / 2.0
+    edge = c - 4.0 * float(k)
+  strokeRing(result.pixels, size, size, c, c, edge, 5.0 * float(k), ChalkInk,
     max(0, 235 - stage * 60))
-  strokeRing(result.pixels, size, size, c, c, (c - 4.0) * 0.6, 3.0, DangerInk,
-    max(0, 200 - stage * 55))
+  strokeRing(result.pixels, size, size, c, c, edge * 0.6, 3.0 * float(k),
+    DangerInk, max(0, 200 - stage * 55))
 
 proc bakeRim(danger: bool): tuple[w, h: int, pixels: seq[uint8]] =
   ## One blob of the LIVE rim. Ninety-six of them ride the current radius, so
   ## the ring visibly contracts without ever re-baking a 2 400 px sprite.
-  let size = 16
+  let
+    k = boardScale
+    size = 16 * k
   result.w = size
   result.h = size
   result.pixels = newRgba(size, size)
   let c = float(size) / 2.0
-  fillDisc(result.pixels, size, size, c, c, 6.0,
+  fillDisc(result.pixels, size, size, c, c, 6.0 * float(k),
     (if danger: DangerInk else: ChalkInk), 255)
-  fillDisc(result.pixels, size, size, c, c, 3.0, ChalkInk,
+  fillDisc(result.pixels, size, size, c, c, 3.0 * float(k), ChalkInk,
     (if danger: 200 else: 255))
 
 proc bakeLiftChip(): tuple[w, h: int, pixels: seq[uint8]] =
-  result.w = 96
-  result.h = 40
-  result.pixels = textPixels("LIFT", result.w, result.h, 26.0, ChalkInk,
-    ColorRGBX(r: 40, g: 30, b: 22, a: 255), 190)
+  let k = boardScale
+  result.w = 96 * k
+  result.h = 40 * k
+  result.pixels = textPixels("LIFT", result.w, result.h, 26.0 * float(k),
+    ChalkInk, ColorRGBX(r: 40, g: 30, b: 22, a: 255), 190)
 
 proc bakeOutStamp(bodyIndex: int): tuple[w, h: int, pixels: seq[uint8]] =
-  result.w = 200
-  result.h = 64
+  let k = boardScale
+  result.w = 200 * k
+  result.h = 64 * k
   result.pixels = textPixels(alias(bodyIndex) & " OUT", result.w, result.h,
-    36.0, ChalkInk, DangerInk, 210)
+    36.0 * float(k), ChalkInk, DangerInk, 210)
 
 proc cachedSprite(spriteId: int,
                   bake: proc (): tuple[w, h: int, pixels: seq[uint8]] {.closure.}):
     tuple[w, h: int, pixels: seq[uint8]] =
-  spriteCache.withValue(spriteId, found):
+  spriteCache.withValue((spriteId, boardScale), found):
     return found[]
   result = bake()
-  spriteCache[spriteId] = result
+  spriteCache[(spriteId, boardScale)] = result
+
+proc halfLogical(spritePx: int): int =
+  ## Half a baked sprite's extent expressed in LOGICAL board pixels. Placements
+  ## are emitted in logical pixels and scaled by `addBoardObject`, while the
+  ## bakes above are already in scaled pixels, so a centering offset taken
+  ## straight off `art.w` would be doubled.
+  spritePx div (2 * boardScale)
 
 proc invalidateBoardMapCaches*() =
   ## Drops every process-wide cache derived from the board's pixels. Needed
@@ -927,7 +963,8 @@ proc addBugs(sim: SimServer, defs: var seq[SpriteDefinition],
             proc (): tuple[w, h: int, pixels: seq[uint8]] = bakeDust(capturedStage))
           dustObject = DustObjectBase + b * 4 + leg
         currentIds.add(dustObject)
-        packet.addBoardObject(dustObject, fx - art.w div 2, fy - art.h div 2,
+        packet.addBoardObject(dustObject, fx - halfLogical(art.w),
+          fy - halfLogical(art.h),
           fy - 3, MapLayerId, dustSprite)
 
     let
@@ -936,8 +973,8 @@ proc addBugs(sim: SimServer, defs: var seq[SpriteDefinition],
           bakeTorso(capturedBody, capturedPosture, capturedDown))
       torsoObject = TorsoObjectBase + b
     currentIds.add(torsoObject)
-    packet.addBoardObject(torsoObject, pxOf(body.px) - torsoArt.w div 2,
-      pxOf(body.py) - torsoArt.h div 2, pxOf(body.py) + 2, MapLayerId,
+    packet.addBoardObject(torsoObject, pxOf(body.px) - halfLogical(torsoArt.w),
+      pxOf(body.py) - halfLogical(torsoArt.h), pxOf(body.py) + 2, MapLayerId,
       torsoSprite)
 
     if not down:
@@ -963,7 +1000,7 @@ proc addBugs(sim: SimServer, defs: var seq[SpriteDefinition],
     let tiltObject = TiltObjectBase + b
     currentIds.add(tiltObject)
     packet.addBoardObject(tiltObject, pxOf(body.px) - 48,
-      pxOf(body.py) - torsoArt.h div 2 - 38, pxOf(body.py) + 4, MapLayerId,
+      pxOf(body.py) - halfLogical(torsoArt.h) - 38, pxOf(body.py) + 4, MapLayerId,
       tiltSprite)
 
 proc addContactFx(sim: SimServer, defs: var seq[SpriteDefinition],
@@ -983,8 +1020,8 @@ proc addContactFx(sim: SimServer, defs: var seq[SpriteDefinition],
   let art = cachedSprite(spriteId,
     proc (): tuple[w, h: int, pixels: seq[uint8]] = bakeBurst(capturedStage))
   currentIds.add(BurstObjectId)
-  packet.addBoardObject(BurstObjectId, pxOf(sim.lastFx.x) - art.w div 2,
-    pxOf(sim.lastFx.y) - art.h div 2, 4000, MapLayerId, spriteId)
+  packet.addBoardObject(BurstObjectId, pxOf(sim.lastFx.x) - halfLogical(art.w),
+    pxOf(sim.lastFx.y) - halfLogical(art.h), 4000, MapLayerId, spriteId)
   if sim.lastFx.lift:
     packet.addSpriteFor(defs, LiftChipSpriteId, LabelLiftChip,
       proc (): tuple[w, h: int, pixels: seq[uint8]] = bakeLiftChip())
@@ -1020,18 +1057,19 @@ proc addBubbles(sim: SimServer, defs: var seq[SpriteDefinition],
     if lines[b].len == 0:
       continue
     let
+      k = boardScale
+      bubbleW = BubbleWidthPx * k
+      bubbleH = BubbleBandHeightPx * k
       text = alias(b) & ": " & lines[b]
       spriteId = BubbleSpriteBase + b
       pal = BugPalettes[b]
       capturedText = text
       capturedPal = pal
     let bubbleLabel = labelSay(b, text)
-    if defs.spriteNeeded(spriteId, BubbleWidthPx, BubbleBandHeightPx,
-        bubbleLabel):
-      packet.addSpriteChanged(defs, spriteId, BubbleWidthPx,
-        BubbleBandHeightPx,
-        textPixels(capturedText, BubbleWidthPx, BubbleBandHeightPx,
-          BubbleFontPx, ChalkInk,
+    if defs.spriteNeeded(spriteId, bubbleW, bubbleH, bubbleLabel):
+      packet.addSpriteChanged(defs, spriteId, bubbleW, bubbleH,
+        textPixels(capturedText, bubbleW, bubbleH,
+          BubbleFontPx * float(k), ChalkInk,
           ColorRGBX(r: capturedPal.hull.r, g: capturedPal.hull.g,
             b: capturedPal.hull.b, a: 255), 200),
         bubbleLabel)

@@ -1,7 +1,7 @@
 ## 8. THE OBSERVATION CONTRACT — the two name spaces, and what a seat may not
 ## see.
 
-import std/[json, random, strformat, strutils]
+import std/[json, random, strformat, strutils, tables]
 import bitworld/spriteprotocol
 import bodies/[sim, global, broadcast, intents, control, baselines, llm]
 import helpers
@@ -178,6 +178,64 @@ block:
                     "seatNames", "prompt", "seatPolicyKind"]:
     check not code.contains(forbidden),
       &"control.nim references `{forbidden}` — the controller must not see it"
+
+# --- board sprites are baked at the scale their placements are emitted at ---
+block:
+  ## `addBoardObject` multiplies every placement by `boardScale` and the map
+  ## plate is baked at `MapWidth * boardScale`, so a sprite baked at 1x on a 2x
+  ## layer draws at HALF its physical size: the 0.30 m bug hull read as 0.15 m
+  ## and bugs appeared to shove each other across a visible gap. The invariant
+  ## is that a baked sprite's extent, measured against the layer it lands on,
+  ## equals the body's extent measured against the map.
+  proc spriteWidths(packet: seq[uint8]): Table[string, int] =
+    result = initTable[string, int]()
+    for message in packet.parseSpritePacket():
+      if message.kind == spkSprite:
+        result[message.sprite.label] = message.sprite.width
+
+  var cfg = defaultGameConfig()
+  var sim = initSimServer(cfg)
+  sim.gameEventLoggingEnabled = false
+  sim.phase = Playing
+  for seat in 0 ..< BodyCount:
+    discard sim.addPlayer("seat-" & $seat, seat, "")
+  for _ in 0 ..< 8:
+    sim.step([0'u8, 0'u8])
+
+  let k = boardRenderScaleFor(MapWidth, MapHeight)
+  check k > 1,
+    "boardRenderScaleFor no longer supersamples the board — this test is moot"
+
+  var specState = initGlobalViewerState()
+  var specNext: GlobalViewerState
+  let spectator = spriteWidths(sim.buildSpriteProtocolUpdates(specState,
+    specNext))
+  var seatState = initPlayerViewerState()
+  var seatNext: PlayerViewerState
+  let seatStream = spriteWidths(sim.buildSpriteProtocolPlayerUpdates(0,
+    seatState, seatNext))
+
+  check spectator.hasKey("boards band 0"),
+    "the spectator frame emitted no map band"
+  let bandWidth = spectator["boards band 0"]
+  check bandWidth == MapWidth * k,
+    &"the map plate is {bandWidth} px wide, not MapWidth * {k}"
+
+  for (label, radiusUm) in [("torso BUG-1 low", TorsoRadius),
+                            ("leg BUG-1 0 floor load 0", FootRadius)]:
+    check spectator.hasKey(label),
+      &"the spectator frame emitted no `{label}` sprite"
+    check seatStream.hasKey(label),
+      &"the seat stream emitted no `{label}` sprite"
+    ## Both bakes are `2 * radius + 8` logical px at their own scale.
+    let expectedLogical = int(2 * radiusUm div UmPerPixel) + 8
+    check seatStream[label] == expectedLogical,
+      &"the seat stream's `{label}` is {seatStream[label]} px, not " &
+      &"{expectedLogical}"
+    check spectator[label] == expectedLogical * k,
+      &"the spectator's `{label}` is {spectator[label]} px on a " &
+      &"{bandWidth} px layer — it must be {expectedLogical * k}, or it draws " &
+      &"at 1/{k} of the body's real size"
 
 if failures > 0:
   quit("test_observation: " & $failures & " failure(s)", 1)
