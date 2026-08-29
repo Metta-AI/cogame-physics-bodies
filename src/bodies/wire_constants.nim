@@ -7,11 +7,10 @@
 ## runs on; server.nim splices the block into every served page and
 ## tools/gen_wire_constants.nim emits it for the static wasm bundle.
 ##
-## The global is `window.BODIES_WIRE`. `client/chrome_common.js` is carried over
-## from the starter BYTE-FOR-BYTE, so it still reads the starter's own global
-## name and falls back to its literals — which are exactly these values, because
-## `PlaybackSpeeds` and `TargetFps` are kept verbatim. `broadcast_core.js` reads
-## `BODIES_WIRE`.
+## The global is `window.BODIES_WIRE`. Both `client/chrome_common.js` (whose
+## speed chips are built from `speeds`) and `client/broadcast_core.js` read it;
+## the chrome's literal fallback exists only for raw file:// opens and must
+## therefore stay in step with this list.
 
 import std/strutils
 import sim, global
@@ -24,7 +23,10 @@ proc jsIntArray(values: openArray[int]): string =
   result.add "]"
 
 const WireConstantsJs* =
-  "window.BODIES_WIRE={speeds:" & jsIntArray(PlaybackSpeeds) &
+  # 0.5 is the replay-only half speed (ReplayHalfSpeedIndex, command '5'); it
+  # rides ahead of the engine's integer PlaybackSpeeds, which the live loop
+  # still clamps to.
+  "window.BODIES_WIRE={speeds:[0.5," & jsIntArray(PlaybackSpeeds)[1..^1] &
   ",fps:" & $TargetFps &
   ",chromeSpriteId:" & $BroadcastChromeSpriteId &
   ",boardW:" & $MapWidth &

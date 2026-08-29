@@ -391,6 +391,52 @@ block:
       "replay_summary.py disagrees about results.reason"
   removeFile(path)
 
+block halfSpeedIsAReplayOnlyCrawl:
+  ## The fleet-wide 1/2x replay speed: command '5' selects
+  ## ReplayHalfSpeedIndex, the chrome shows 0.5, and the step budget spends one
+  ## tick every OTHER frame (halfPhase parity) outside lulls.
+  var replay = ReplayPlayer()
+  replay.speedIndex = 0
+  applySpeedCommand(replay.speedIndex, '5')
+  check replay.speedIndex == ReplayHalfSpeedIndex, "'5' must select 1/2x"
+  check replay.replayDisplaySpeed() == 0.5,
+    "the chrome speed at 1/2x is 0.5, got " & $replay.replayDisplaySpeed()
+  check replay.replaySpeed() == 1,
+    "the integer step size clamps to 1 at 1/2x (live loop safety)"
+  replay.skipLulls = false
+  replay.halfPhase = false
+  check replay.replayStepBudget(0) == 0, "even frame at 1/2x spends no tick"
+  replay.halfPhase = true
+  check replay.replayStepBudget(0) == 1, "odd frame at 1/2x spends one tick"
+  ## A lull skip stays a skip: the boost is not halved.
+  replay.skipLulls = true
+  replay.lullSpans = @[[0, 10]]
+  replay.halfPhase = false
+  check replay.replayStepBudget(0) == LullSpeedBoost,
+    "the lull boost must survive 1/2x"
+  replay.skipLulls = false
+  replay.lullSpans = @[]
+  applySpeedCommand(replay.speedIndex, '+')
+  check replay.speedIndex == 0, "'+' from 1/2x lands on 1x"
+  applySpeedCommand(replay.speedIndex, '-')
+  check replay.speedIndex == ReplayHalfSpeedIndex, "'-' from 1x lands on 1/2x"
+  applySpeedCommand(replay.speedIndex, '-')
+  check replay.speedIndex == ReplayHalfSpeedIndex, "1/2x is the floor"
+  ## The engine's own dispatch has to route '5', not just applySpeedCommand.
+  var sim = initSimServer(certConfig())
+  replay.speedIndex = 0
+  replay.applyReplayCommand(sim, '5')
+  check replay.speedIndex == ReplayHalfSpeedIndex,
+    "applyReplayCommand does not dispatch '5' to the speed handler"
+  ## The chrome highlights the chip whose value === the frame's `sp`, so the
+  ## field has to carry 0.5 verbatim — an int `sp` would round it to 0 and the
+  ## 0.5x chip would never light up.
+  let frame = parseJson(sim.buildStateJson(newJArray(), true,
+    replay.replayDisplaySpeed(), sim.tickCount, false, true, -1))
+  check frame["sp"].getFloat() == 0.5,
+    "the frame's sp field does not carry 0.5 at half speed, got " &
+      $frame["sp"]
+
 if fileExists(completePath):
   removeFile(completePath)
 if failures > 0:
