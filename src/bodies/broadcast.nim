@@ -294,7 +294,8 @@ proc intentsJson(sim: SimServer): JsonNode =
       discard
 
 proc buildStateJson*(sim: SimServer, events: JsonNode, playing: bool,
-                     speed, maxTick: int, looping, transportEnabled: bool,
+                     speed: float, maxTick: int,
+                     looping, transportEnabled: bool,
                      mismatchTick: int, leadSeries: seq[seq[int]] = @[],
                      startTick = 0, endHoldSeconds = 0, skipLulls = false,
                      fastForwarding = false,

@@ -917,7 +917,8 @@ proc runServerLoop*(host: string = sim.DefaultHost,
             sim.stepEvents(broadcastTracker, frameEvents)
             board.addSprite(BroadcastChromeSpriteId, 1, 1, [0'u8, 0, 0, 0],
               sim.buildStateJson(frameEvents, true,
-                playbackSpeed(liveSpeedIndex), sim.effectiveMaxTicks(),
+                float(playbackSpeed(liveSpeedIndex)),
+                sim.effectiveMaxTicks(),
                 false, false, -1))
             board
       if packet.len == 0:

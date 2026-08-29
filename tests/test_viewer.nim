@@ -47,24 +47,33 @@ let markup = stripComments(page)
 ## The starter's copies, if the read-only mount is available. In CI it is not,
 ## so the byte-identity claim is pinned by SHA-256 instead.
 const ChromeCommonSha =
-  "7ace7287e0d19bf0fddb2362c55e4d76dfb44adcd4fbc8d1743b0557ced72f7c"
+  "b81e498cf844c88c6dbba76d2a0d335043a8d6246ae6b20690bdd97b2a14e893"
 
 # --- chrome_common.js is the starter's, byte for byte ------------------
 block:
   var digest = ""
   for value in sha256(chrome):
     digest.add toHex(value, 2).toLowerAscii()
-  ## The pin is regenerated whenever the STARTER's file legitimately changes;
-  ## what it forbids is editing OUR copy. Every game-specific readout lives in
-  ## the appended block instead.
+  ## coworld-ctf's file plus the fleet-wide replay transport patch (the 0.5x
+  ## speed chip and this game's own wire global). The pin is regenerated
+  ## whenever the STARTER's file legitimately changes; what it forbids is
+  ## editing OUR copy for game-specific readouts, which belong in the appended
+  ## block instead.
   if digest != ChromeCommonSha:
     echo "NOTE: chrome_common.js sha256 is ", digest
   check digest == ChromeCommonSha,
-    "client/chrome_common.js is NOT byte-identical to the inherited copy " &
-    "(sha256 " & digest & "). Every game-specific readout belongs in the " &
-    "appended game block."
+    "client/chrome_common.js is NOT the inherited copy plus the pinned " &
+    "transport patch (sha256 " & digest & "). Every game-specific readout " &
+    "belongs in the appended game block."
   check chrome.contains("window.ChromeCommon = function (ctx)"),
     "chrome_common.js is not the shared chrome module"
+  ## The speed chips are built from the ENGINE's speed list, so the chrome has
+  ## to read THIS game's wire global: the starter's CTF_WIRE never resolved
+  ## here, and the chips silently ran off the literal fallback instead.
+  check chrome.contains("window.BODIES_WIRE || {}"),
+    "chrome_common.js does not read this game's wire global"
+  check chrome.contains("0.5: '5'"),
+    "chrome_common.js has no 0.5x entry in the speed->command map"
 
 # --- broadcast_core.js differs in EXACTLY the wire identifier ----------
 block:
@@ -133,6 +142,20 @@ block:
       "removed"
     check not page.contains("$('" & id & "')"),
       &"replay_broadcast.html still wires #{id}"
+
+# --- the transport keyboard: Space pauses, digits pick a speed --------
+block:
+  ## index.html (this page, spliced) is the ONLY page the static bundle ships,
+  ## so its own keydown is the whole keyboard story — there is no shell iframe
+  ## to forward Space down a command channel from.
+  check page.contains("function togglePlay() { send(' '); }"),
+    "the page no longer sends the ' ' pause command"
+  check page.contains("if (k === ' ') { ev.preventDefault(); togglePlay(); }"),
+    "Space no longer pauses/unpauses playback on the board page"
+  ## '5' is the 1/2x speed command; the digit passthrough is what carries it
+  ## (and every other speed digit) from the keyboard to the engine.
+  check page.contains("else if (k >= '1' && k <= '9') send(k);"),
+    "the page no longer forwards speed digits, so '5' (1/2x) is unreachable"
 
 # --- the appended game block, and its pb- prefix ----------------------
 block:
@@ -233,14 +256,12 @@ block:
 
 # --- no ctf_ / CTF_ / paintball identifier survives ------------------
 block:
-  ## `client/chrome_common.js` is EXEMPT and pinned byte-for-byte above: it is
-  ## the starter's file, it still names the starter's wire global as its
-  ## fallback, and editing it is the thing this suite forbids.
+  ## `client/chrome_common.js` used to be exempt here because it still named
+  ## the starter's CTF_WIRE global as its fallback. It reads BODIES_WIRE now,
+  ## so the sweep covers every shipped file with no hole left in it.
   var offenders: seq[string] = @[]
   for dir in ["client", "replay-viewer", "src"]:
     for path in walkDirRec(repoFile(dir)):
-      if path.endsWith("chrome_common.js"):
-        continue
       if not (path.endsWith(".nim") or path.endsWith(".js") or
               path.endsWith(".html") or path.endsWith(".nims")):
         continue
