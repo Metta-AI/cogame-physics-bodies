@@ -30,7 +30,8 @@ nix develop -c uv run --package metta-posttrain --extra train \
 
 The local 10-match exports contained 804 training and 202 validation examples
 for default, and 480 training and 120 validation examples for blitz. All 1,606
-examples fit a 4,096-token context. One CPU optimizer step with a local tiny
+examples fit a 4,096-token context with the Qwen2.5-0.5B-Instruct tokenizer
+(maximum: 1,646 tokens). One CPU optimizer step with a local tiny
 model reduced held-out loss from 1.7463 to 1.7401 for both variants. These
 examples distill the scripted teacher; they do not establish stronger league
 play.
