@@ -1,4 +1,26 @@
-# Metta post-training data
+# Training
+
+## Numeric Metta RL and PufferLib
+
+Both certified variants use the headless simulator and each seat's exact
+player-visible view. Build the persistent bridge and play complete scripted
+and random matches:
+
+```sh
+nimby sync nimby.lock
+nim c -d:release --path:src -o:/tmp/physics-bodies-train-bridge tools/train_bridge.nim
+python3 tools/test_train_bridge.py /tmp/physics-bodies-train-bridge
+```
+
+Pass the binary, `coworld_manifest_template.json`, and `default` or `blitz`
+to `recipes.external.coworld_metta_rl.train` or
+`recipes.external.coworld.train` in Metta, with `players=2` and a finite
+`total_timesteps`. The 85-feature observation excludes the other seat's
+intent. Seven action heads select stance, aim, bearing, aggression, posture,
+lead time, and circling direction. Both seats decide against one pre-turn
+state. The score is the game's zero-sum match score.
+
+## Metta post-training data
 
 The native simulator and published `pusher` policy export supervised examples
 for both certified variants:
