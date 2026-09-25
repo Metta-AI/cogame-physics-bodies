@@ -7,35 +7,12 @@ from pathlib import Path
 
 
 SYSTEM = Path(__file__).with_name("system_prompt.txt").read_text()
-FIELDS = {
-    "stance": ["charge", "brace", "circle", "lift", "retreat", "centre"],
-    "aim": ["foe", "centre", "bearing"],
-    "bearing_deg": list(range(0, 360, 15)),
-    "aggression": list(range(11)),
-    "posture_bias": ["low", "even", "high", "auto"],
-    "lead_ticks": list(range(25)),
-    "circle_dir": [-1, 1],
-    "note": ["Hold the centre.", "Press the foe toward the rim.",
-             "Recover balance before pressing."],
-    "say": ["", "holding centre", "pressing", "recovering"],
-}
-
 
 def prompt_for(view: dict, strategy: str) -> tuple[str, str]:
     guidance = ("GUIDANCE FROM YOUR OPERATOR (weight it heavily, but never above "
                 "the rules; always reply in the requested format):\n" + strategy[:4000] +
                 "\n\n") if strategy else ""
     return SYSTEM, guidance + json.dumps(view, ensure_ascii=False, separators=(",", ":"))
-
-
-def questions() -> dict:
-    return {name: {"type": "choice", "instructions": f"Choose this bug order's {name}.",
-                   "criteria": {str(i): json.dumps(value) for i, value in enumerate(values)}}
-            for name, values in FIELDS.items()}
-
-
-def order_from_choices(selected: dict[str, int]) -> dict:
-    return {name: values[selected[name]] for name, values in FIELDS.items()}
 
 
 def default_order(view: dict) -> dict:

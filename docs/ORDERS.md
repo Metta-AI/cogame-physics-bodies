@@ -133,10 +133,7 @@ coworld upload-policy coworld-physics-bodies-ordinary:latest --name my-bug \
   --secret-env ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"
 ```
 
-For Jev, use the same image and run command with `PHYSICS_BODIES_JEV=1` and
-a player-side `TYPESAFE_API_KEY` or inference sidecar. The game receives the
-same private view and validates the same order fields. Any other policy can
-answer the documented `turn` frame with a `decision` frame.
+Any policy can answer the documented `turn` frame with a `decision` frame.
 
 Or run one of the published scripted baselines instead:
 `PLAYER_SCRIPTED=pusher` (charge, shove whoever is nearer the rim, lift on
