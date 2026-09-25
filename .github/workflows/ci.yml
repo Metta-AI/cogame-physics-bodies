@@ -182,6 +182,12 @@ jobs:
       - name: Build image
         run: docker build --platform=linux/amd64 -t "${IMAGE}:ci" .
 
+      - name: Build ordinary player image
+        run: docker build --platform=linux/amd64 -f Dockerfile.ordinary-player -t coworld-physics-bodies-ordinary:ci .
+
+      - name: Test ordinary player policy
+        run: docker run --rm coworld-physics-bodies-ordinary:ci python -m unittest discover -s /player -p 'test_*.py' -v
+
       - name: Raw-Docker episode smoke
         # SMOKE_SLUG is passed explicitly so the workflow's SLUG is the single
         # source for the game/player entrypoint names; the script's own

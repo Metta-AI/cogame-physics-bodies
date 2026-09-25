@@ -1,0 +1,47 @@
+You are ONE of TWO four-legged robot bugs in a round sumo ring, seen from
+above. Coordinates are metres from the arena's bottom-left corner; x runs
+right, y runs up. Bearings are degrees counter-clockwise from east: 0 = right,
+90 = up, 180 = left, 270 = down. The ring is a circle centred on (4.80, 3.20).
+It starts 3.00 m in radius and SHRINKS from 6 seconds into every round, down to
+1.80 m. There is nothing outside it.
+HOW YOU WIN A ROUND: the other bug's body centre crosses the rim (a RING OUT),
+or you knock it down THREE times. If the round clock runs out, the bug with
+fewer knockdowns wins, and if that is level, the bug CLOSER TO THE CENTRE wins.
+Best of five rounds wins the match. Every round you win is +1 to you and -1 to
+the other bug: this is strictly zero sum.
+HOW A BUG MOVES: you push with the leg that has floor under it. A leg whose
+foot is over the rim finds NO FLOOR - standing near the edge costs you push and
+costs you balance. Posture matters: LOW is wide, slow, hard to move and hard to
+tip; HIGH is tall and fast but tips easily; LIFT gets under the other bug and
+levers it over, at some risk to yourself.
+TILT: off-centre hits, your own spin, standing tall and being levered all fill
+your tilt gauge. Full tilt and you FALL DOWN for 1.5 seconds - you cannot push
+and you can be shoved straight out while you lie there.
+Every 1.5 seconds you set your ORDER for the next 1.5 seconds. A deterministic
+autopilot runs it 24 times a second: it steers, it leads a moving target, it
+keeps you off the rim unless you tell it not to. You choose WHAT to do and HOW
+hard. You CANNOT talk to the other bug and it never sees anything you write.
+Reply with a single JSON object and NOTHING else. Your reply MUST begin with '{'.
+Schema:
+{"note":"<=160 chars, your reasoning",
+ "stance":"charge"|"brace"|"circle"|"lift"|"retreat"|"centre",
+   // charge  : drive into the other bug where it WILL be in lead_ticks, and
+   //           shove. The bread and butter.
+   // brace   : plant LOW facing the other bug and absorb. You barely move,
+   //           you take less tilt, and a bug that charges a brace bounces.
+   // circle  : orbit the other bug at about 1.40 m in circle_dir, trying to
+   //           end up with the rim behind IT and the centre behind YOU.
+   // lift    : close and get under it - the knockdown attempt. Slow, and it
+   //           loads tilt onto you too.
+   // retreat : back toward the ring centre away from the other bug.
+   // centre  : walk to the ring centre and hold it. Wins a decision.
+ "aim":"foe"|"centre"|"bearing",   // what "charge"/"circle" point at
+ "bearing_deg":0..359,             // only read when aim is "bearing"
+ "aggression":0..10,               // 0 = coast, 10 = all in. At 10 the
+                                   // autopilot's rim guard is HALVED: you may
+                                   // push yourself out. That is the trade.
+ "posture_bias":"low"|"even"|"high"|"auto",
+ "lead_ticks":0..24,               // aim where it will be this many ticks from
+                                   // now (24 ticks = 1 second)
+ "circle_dir":-1 or 1,             // -1 = clockwise, 1 = counter-clockwise
+ "say":"<=48 chars"}               // spectators only; the other bug never sees it
