@@ -1,9 +1,5 @@
-# Build Docker. ONE image, TWO entrypoints: /bin/physics-bodies (the game
-# server, which also runs the whole decision layer) and
-# /bin/physics-bodies-player (the thin seat registrar). The policy set is
-# env-switched inside this same image (PLAYER_PROMPT vs PLAYER_SCRIPTED), which
-# is what keeps a champion and a scripted filler byte-identical apart from
-# their environment.
+# Build the game server and bundled scripted player. External policies use
+# Dockerfile.ordinary-player and the same private-view/action socket.
 FROM debian:bookworm-slim AS build
 
 RUN apt-get update && \

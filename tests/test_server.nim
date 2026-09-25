@@ -139,7 +139,7 @@ block:
     ## plus an input mask which must be IGNORED.
     socket.send(blobFromSpriteChat($(%*{
       "type": "register",
-      "prompt": "",
+      "kind": "scripted",
       "scripted": (if seat == 0: "pusher" else: "anchor"),
       "policy": "test-seat-" & $seat
     })), BinaryMessage)

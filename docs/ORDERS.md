@@ -1,6 +1,6 @@
 # Writing a bug order
 
-A policy is just a prompt. Every **1.5 seconds** (36 ticks) your seat is asked
+Every **1.5 seconds** (36 ticks) an external player is asked
 what its bug does next, and a deterministic autopilot runs that order 24 times a
 second: it steers, it leads a moving target, and it keeps you off the rim unless
 you tell it not to. You choose **what** to do and **how hard**.
@@ -127,10 +127,16 @@ of it driving it at the nearest rim.
 ## Field your own
 
 ```bash
-coworld upload-policy coworld-physics-bodies:latest --name my-bug \
-  --run /bin/physics-bodies-player \
-  --secret-env PLAYER_PROMPT="<your strategy>"
+coworld upload-policy coworld-physics-bodies-ordinary:latest --name my-bug \
+  --run "python /player/player.py" \
+  --secret-env PLAYER_PROMPT="<your strategy>" \
+  --secret-env ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"
 ```
+
+For Jev, use the same image and run command with `PHYSICS_BODIES_JEV=1` and
+a player-side `TYPESAFE_API_KEY` or inference sidecar. The game receives the
+same private view and validates the same order fields. Any other policy can
+answer the documented `turn` frame with a `decision` frame.
 
 Or run one of the published scripted baselines instead:
 `PLAYER_SCRIPTED=pusher` (charge, shove whoever is nearer the rim, lift on

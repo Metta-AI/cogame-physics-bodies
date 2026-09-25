@@ -100,14 +100,17 @@ block:
   var scripted = 0
   var owned = 0
   for policy in policies:
-    check policy["run"].getStr() == "/bin/physics-bodies-player",
-      "a policy does not run /bin/physics-bodies-player"
     if policy["env"].hasKey("PLAYER_PROMPT"):
       inc prompts
+      check policy["run"].getStr() == "python /player/player.py" and
+        policy["image"].getStr() == "coworld-physics-bodies-ordinary:latest",
+        "a prompt policy does not use the ordinary player image"
       check policy["env"]["PLAYER_PROMPT"].getStr().len > 200,
         "an LLM policy's prompt is too short to be a strategy"
     if policy["env"].hasKey("PLAYER_SCRIPTED"):
       inc scripted
+      check policy["run"].getStr() == "/bin/physics-bodies-player",
+        "a scripted policy does not use the bundled player"
       check policy["env"]["PLAYER_SCRIPTED"].getStr() in ["pusher", "anchor"],
         "a scripted policy names an unpublished baseline"
     if policy.hasKey("player"):

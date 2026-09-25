@@ -121,8 +121,8 @@ no substitutions — is what proves it in a real browser.
 
 Every wait is bounded: the two batch deadlines, the inter-batch rate floor, the
 outer per-turn deadline, `lobbyJoinTimeoutTicks`, the 660 s engine stop and the
-bounded shutdown grace. Both seats' LLM calls go out as **one parallel batch**
-per turn (`curly.makeRequests`) — seats are never queried sequentially, which is
+bounded shutdown grace. Both seats' private turn requests go out as **one batch**
+per turn — seats are never queried sequentially, which is
 the documented way to blow the wall clock. On two consecutive failures a seat
 plays the `pusher` intent and a `fallback` record names the cause. **No failure
 mode leaves a bug uncommanded.**
@@ -184,4 +184,4 @@ python3 tools/replay_summary.py /tmp/ep.replay | jq .
 
 `protocol` must read `physics-bodies/v1`. A champion seat's intents must carry
 `source: "llm"` with varying `stance`/`aggression` — all-fallbacks or a constant
-intent means the LLM never played.
+intent means the external player never supplied an accepted order.

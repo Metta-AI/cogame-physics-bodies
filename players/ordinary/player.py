@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import time
 import urllib.request
 from urllib.parse import parse_qs, urlsplit
 
@@ -48,7 +49,7 @@ def choose(view: dict, strategy: str, seat: int) -> tuple[dict, str]:
             selected[name] = max(range(len(values)), key=probabilities.__getitem__)
         return order_from_choices(selected), "jev"
     if strategy:
-        body = json.dumps({"model": os.environ.get("ANTHROPIC_MODEL", "claude-haiku-4-5"),
+        body = json.dumps({"model": os.environ.get("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001"),
                            "max_tokens": 500, "system": system,
                            "messages": [{"role": "user", "content": user}]}).encode()
         request = urllib.request.Request(
@@ -66,33 +67,58 @@ def main() -> None:
     strategy = os.environ.get("PLAYER_PROMPT", "")
     backend = ("jev" if os.environ.get("PHYSICS_BODIES_JEV") == "1"
                else "llm" if strategy else "heuristic")
-    registration = json.dumps({"type": "register", "scripted": None,
+    registration = json.dumps({"type": "register", "kind": "external", "scripted": None,
                                "policy": os.environ.get("PLAYER_POLICY_LABEL", backend)[:48]}).encode()
     packet = bytes([0x81]) + len(registration).to_bytes(2, "little") + registration
-    sent_again = False
+    connected_once = False
+    failed_dials = 0
+    while failed_dials < (6 if connected_once else 240):
+        opened = False
+        sent_again = False
 
-    def on_open(socket: websocket.WebSocketApp) -> None:
-        socket.send(packet, opcode=websocket.ABNF.OPCODE_BINARY)
+        def on_open(socket: websocket.WebSocketApp) -> None:
+            nonlocal opened
+            opened = True
+            socket.send(packet, opcode=websocket.ABNF.OPCODE_BINARY)
 
-    def on_data(socket: websocket.WebSocketApp, data, opcode: int, _continued: bool) -> None:
-        nonlocal sent_again
-        if opcode == websocket.ABNF.OPCODE_BINARY:
-            if not sent_again:
-                socket.send(packet, opcode=websocket.ABNF.OPCODE_BINARY)
-                sent_again = True
-            socket.send(bytes([0x85]), opcode=websocket.ABNF.OPCODE_BINARY)
+        def on_data(socket: websocket.WebSocketApp, data, opcode: int, _continued: bool) -> None:
+            nonlocal sent_again
+            if opcode == websocket.ABNF.OPCODE_BINARY:
+                if not sent_again:
+                    socket.send(packet, opcode=websocket.ABNF.OPCODE_BINARY)
+                    sent_again = True
+                socket.send(bytes([0x85]), opcode=websocket.ABNF.OPCODE_BINARY)
 
-    def on_message(socket: websocket.WebSocketApp, message: str) -> None:
-        frame = json.loads(message)
-        if frame["type"] == "turn":
-            action, source = choose(frame["view"], strategy, seat)
-            socket.send(json.dumps({"type": "decision", "turn": frame["turn"],
-                                    "action": action, "source": source}))
+        def on_message(socket: websocket.WebSocketApp, message: str | bytes) -> None:
+            if isinstance(message, bytes):
+                return
+            frame = json.loads(message)
+            if frame["type"] == "turn":
+                if backend == "jev" and not (os.environ.get("AWS_ENDPOINT_URL_BEDROCK_RUNTIME")
+                                             or os.environ.get("TYPESAFE_API_KEY")):
+                    socket.send(json.dumps({"type": "decision", "id": frame["id"],
+                                            "cause": "no_credentials",
+                                            "error": "Jev credential unavailable"}))
+                    return
+                if backend == "llm" and not os.environ.get("ANTHROPIC_API_KEY"):
+                    socket.send(json.dumps({"type": "decision", "id": frame["id"],
+                                            "cause": "no_credentials",
+                                            "error": "prompt credential unavailable"}))
+                    return
+                action, source = choose(frame["view"], strategy, seat)
+                socket.send(json.dumps({"type": "decision", "id": frame["id"],
+                                        "turn": frame["turn"],
+                                        "action": action, "source": source}))
 
-    app = websocket.WebSocketApp(url,
-                                 on_open=on_open, on_data=on_data,
-                                 on_message=on_message)
-    app.run_forever(reconnect=1)
+        app = websocket.WebSocketApp(url,
+                                     on_open=on_open, on_data=on_data,
+                                     on_message=on_message)
+        app.run_forever()
+        if opened:
+            connected_once = True
+            failed_dials = 0
+        failed_dials += 1
+        time.sleep(0.5)
 
 
 if __name__ == "__main__":

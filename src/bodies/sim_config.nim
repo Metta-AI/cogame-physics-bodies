@@ -43,8 +43,6 @@ proc defaultGameConfig*(): GameConfig =
   result.gameOverTicks = GameOverTicksDefault
   result.fastMode = true
   result.showPlayerLabels = false
-  result.model = ""
-  result.maxOutputTokens = MaxOutputTokensDefault
   result.speed = 1
 
 proc readInt(node: JsonNode, key: string, current: int): int =
@@ -96,10 +94,8 @@ proc validate(config: var GameConfig) =
   config.shrinkStartTick = clamp(config.shrinkStartTick, 0, config.roundTicks)
   config.knockdownsToLose = clamp(config.knockdownsToLose, 1, 99)
   config.downTicks = clamp(config.downTicks, 1, 600)
-  ## curly hands the batch deadline to CURLOPT_TIMEOUT, whose granularity is
-  ## WHOLE SECONDS and whose conversion FLOORS — a sub-second value is not the
-  ## deadline it claims to be, so it is refused rather than silently floored
-  ## to zero (paintbot 0.1.2's scar: `attempt1Ms: 4500` really ran with 4 s).
+  ## Player socket deadlines are sent in whole seconds. A sub-second value
+  ## would silently become zero, so keep both attempts at least one second.
   config.attempt1Ms = clamp(config.attempt1Ms, 1000, 120_000)
   config.retryMs = clamp(config.retryMs, 1000, 120_000)
   config.turnBudgetMs = clamp(config.turnBudgetMs,
@@ -109,7 +105,6 @@ proc validate(config: var GameConfig) =
   config.lobbyJoinTimeoutTicks = clamp(config.lobbyJoinTimeoutTicks, 24, 20_000)
   config.startWaitTicks = clamp(config.startWaitTicks, 0, 20_000)
   config.gameOverTicks = clamp(config.gameOverTicks, 0, 20_000)
-  config.maxOutputTokens = clamp(config.maxOutputTokens, 64, 8192)
   config.speed = clamp(config.speed, 1, PlaybackSpeeds[^1])
   while config.slots.len < BodyCount:
     config.slots.add SlotConfig(alias: BugAliases[config.slots.len])
@@ -208,9 +203,6 @@ proc update*(config: var GameConfig, configJson: string) =
   config.fastMode = readBool(node, "fastMode", config.fastMode)
   config.showPlayerLabels = readBool(node, "showPlayerLabels",
     config.showPlayerLabels)
-  config.model = readString(node, "model", config.model)
-  config.maxOutputTokens = readInt(node, "maxOutputTokens",
-    config.maxOutputTokens)
   config.speed = readInt(node, "speed", config.speed)
   config.validate()
 
@@ -294,8 +286,6 @@ proc configJson*(config: GameConfig, perm: array[BodyCount, int32]): string =
     "shrinkStartTick": config.shrinkStartTick,
     "closedRoster": config.closedRoster,
     "speed": config.speed,
-    "model": config.model,
-    "maxOutputTokens": config.maxOutputTokens,
     "fastMode": config.fastMode,
     "showPlayerLabels": config.showPlayerLabels,
     "startWaitTicks": config.startWaitTicks,

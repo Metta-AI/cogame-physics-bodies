@@ -36,8 +36,6 @@ const
   MaxPolicyLabelRunes* = 48     ## `register.policy` cap, in RUNES.
   MaxFallbackDetailRunes* = 200 ## `fallback.detail` cap, in RUNES.
   MaxIntentRunes* = 480         ## whole serialized `intent` record cap.
-  MaxPromptRunes* = 4000        ## PLAYER_PROMPT transport cap (truncate,
-                                ## never reject).
 
   ## --- Closed end vocabularies (kept verbatim from ctf) --------------------
   ReasonComplete* = "complete"
@@ -143,7 +141,6 @@ const
   LobbyJoinTimeoutTicksDefault* = 720
   StartWaitTicksDefault* = 5 * TargetFps
   GameOverTicksDefault* = 3 * TargetFps
-  MaxOutputTokensDefault* = 900
 
   BugAliases*: array[BodyCount, string] = ["BUG-1", "BUG-2"]
   SideNames*: array[BodyCount, string] = ["bug1", "bug2"]
@@ -276,8 +273,6 @@ type
     gameOverTicks*: int
     fastMode*: bool
     showPlayerLabels*: bool
-    model*: string
-    maxOutputTokens*: int
     speed*: int
 
   Player* = object

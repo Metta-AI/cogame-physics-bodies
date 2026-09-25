@@ -255,13 +255,10 @@ block:
     check entry["image"].getStr() == placeholder,
       "a declared player's image is not the derived placeholder"
 
-# --- the secret namespace EQUALS game.name --------------------------
+# --- game receives no model credential -------------------------------
 block:
-  let uri = game["runnable"]["env"]["ANTHROPIC_API_KEY_URI"].getStr()
-  check uri == "secret://coworld/" & game["name"].getStr() &
-    "/anthropic_api_key",
-    &"the secret namespace `{uri}` does not equal game.name " &
-    "(cooperative-hunting, 2026-08-25)"
+  check game["runnable"]["env"].len == 0,
+    "the game receives a player model credential"
   let manifestName = game["name"].getStr()
   check manifestName == GameName,
     &"game.name `{manifestName}` != the engine's GameName `{GameName}`"

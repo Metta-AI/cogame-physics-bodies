@@ -6,18 +6,16 @@
 configured token demands exactly that token: a mismatch is refused with 403 and
 the socket is closed.
 
-A seat sends **one** Sprite v1 chat message carrying its registration, and then
-only receives:
+A seat sends a Sprite v1 chat registration:
 
 ```json
-{"type":"register","prompt":"<strategy text or empty>",
+{"type":"register","kind":"external"|"scripted",
  "scripted":"pusher"|"anchor"|null,"policy":"<free label>"}
 ```
 
-- `prompt` non-empty ⇒ this seat is an **LLM seat**. Capped at 4000 runes at the
-  transport (truncated, never rejected) and **never** written to the replay or
-  the results.
-- `scripted` names a baseline. A seat that sets neither field — or never
+- `external` receives private turn requests and sends bug orders. The player
+  owns model calls, prompts, ranking, and credentials.
+- `scripted` names a baseline. A seat that never
   registers at all — is `pusher`, and the server says so out loud:
   `physics-bodies: seat N never registered; driving BUG-<i+1> with pusher`.
 - `policy` is a free label, capped at 48 runes, and is the only part of the
@@ -46,8 +44,8 @@ both round tallies. Board labels carry only `BUG-1` / `BUG-2`;
 
 ## The observation
 
-Composed server-side and handed to the policy (the LLM user message, or the
-scripted baseline's input — both read the identical object). Numbers are in
+Composed server-side and handed to the policy. External players and scripted
+baselines read the same view. Numbers are in
 **view coordinates**: metres, origin bottom-left, y up, bearings in degrees
 counter-clockwise from east, rounded to 2 decimals.
 
@@ -96,6 +94,22 @@ start axes, and the variant name.
 
 See [ORDERS.md](ORDERS.md) for the schema, the per-field caps and the repair
 table.
+
+For each decision turn, an external player receives a text frame:
+
+```json
+{"type":"turn","id":7,"turn":3,"view":{"turn":3},"retry":false,"timeout_seconds":9}
+```
+
+The player replies on the same socket with a text frame. `action` is the full
+order object from [ORDERS.md](ORDERS.md):
+
+```json
+{"type":"decision","id":7,"turn":3,"action":{"stance":"charge","aim":"foe","bearing_deg":0,"aggression":7,"posture_bias":"auto","lead_ticks":4,"circle_dir":1,"note":"press","say":""}}
+```
+
+The game ignores stale IDs, repairs invalid fields, and uses `pusher` after the
+bounded retry fails. Both seat requests are sent before either reply is read.
 
 ## The global socket
 

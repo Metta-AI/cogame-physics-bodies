@@ -1,20 +1,11 @@
-## 7. The turn loop, against a FAKE LLM provider.
-##
-## The headline assertion is the one the wall-clock budget rests on: BOTH seats'
-## calls go out in ONE PARALLEL BATCH per turn. The fake provider records each
-## request's in-flight window and the test asserts the two INTERSECT — querying
-## seats one after another is the documented way to blow the budget.
-##
-## The provider is reached through the BEDROCK sidecar credentials, which are
-## the one transport whose endpoint is configurable, so no network is touched.
+## Decision turns against a fake ordinary player batch.
 
-import std/[json, locks, monotimes, options, os, strformat, strutils, times]
-import curly
+import std/[json, locks, monotimes, options, os, sequtils, strformat, strutils, times]
 import mummy
 from whisky import nil
 import bitworld/runtime
 import bitworld/spriteprotocol
-import bodies/[sim, intents, control, baselines, llm, decide, replays]
+import bodies/[sim, intents, control, baselines, decide, replays]
 import bodies/server as gameServer
 import helpers
 
@@ -24,89 +15,45 @@ template check(condition: bool, message: string) =
     echo "FAIL: ", message
     inc failures
 
-type Window = object
-  startMs, endMs: int64
-
 var
   fakeLock: Lock
-  windows: seq[Window]
-  fakeDelayMs = 60
-  fakeStatus = 200
-  fakeBody = """{"stance":"lift","aggression":9,"say":"under it","note":"fake"}"""
+  batches: seq[seq[BatchCall]]
+  fakeDelayMs = 0
+  fakeCause = ""
+  fakeAction = """{"stance":"lift","aggression":9,"say":"under it","note":"fake"}"""
   epoch = getMonoTime()
-  ## Which BLOCK a request belongs to. A block that deliberately hangs the
-  ## provider walks away from requests whose handler is still sleeping, and
-  ## those handlers used to append their in-flight window whenever they woke
-  ## up — landing in a LATER block's freshly cleared list and making its
-  ## request count wrong (observed: "a throttled turn issued 3 requests").
-  ## The handler stamps the epoch it started under and records only if it is
-  ## still current.
-  fakeEpoch = 0
 
 initLock(fakeLock)
 
-proc nowMs(): int64 = (getMonoTime() - epoch).inMilliseconds
-
-proc fakeHandler(request: Request) {.gcsafe.} =
-  let started = nowMs()
-  var delay, status, requestEpoch: int
-  var body: string
+proc fakeBatch(calls: seq[BatchCall], timeoutSeconds: int): seq[BatchReply]
+    {.gcsafe.} =
+  var delay: int
+  var cause, action: string
   {.gcsafe.}:
     withLock fakeLock:
       delay = fakeDelayMs
-      status = fakeStatus
-      body = fakeBody
-      requestEpoch = fakeEpoch
-  sleep(delay)
-  var headers: HttpHeaders
-  headers["Content-Type"] = "application/json"
-  let payload =
-    if status == 200:
-      $(%*{"stop_reason": "end_turn",
-           "content": [{"type": "text", "text": body}]})
+      cause = fakeCause
+      action = fakeAction
+      batches.add(calls)
+  sleep(min(delay, timeoutSeconds * 1000))
+  result = newSeq[BatchReply](calls.len)
+  for reply in result.mitems:
+    if delay > timeoutSeconds * 1000:
+      reply.cause = "timeout"
+      reply.error = "player response timed out"
+    elif cause.len > 0:
+      reply.cause = cause
+      reply.error = "player returned " & cause
     else:
-      body
-  {.gcsafe.}:
-    withLock fakeLock:
-      if requestEpoch == fakeEpoch:
-        windows.add Window(startMs: started, endMs: nowMs())
-  request.respond(status, headers, payload)
-
-proc noWebsocket(ws: WebSocket, event: WebSocketEvent, message: Message)
-    {.gcsafe.} =
-  discard
-
-let server = newServer(fakeHandler, noWebsocket, workerThreads = 4)
-var serverThread: Thread[void]
-proc serveProc() {.thread.} =
-  {.gcsafe.}:
-    server.serve(Port(8791), "127.0.0.1")
-createThread(serverThread, serveProc)
-server.waitUntilReady()
-
-## A SECOND origin. curly sets CURLOPT_PIPEWAIT and CURLMOPT_PIPELINING, so two
-## requests to the SAME HTTP/1.1 origin are held on one connection and run back
-## to back — an artifact of the fake provider, not of the turn loop (the real
-## Bedrock and Anthropic endpoints are HTTP/2 and multiplex). Two origins give
-## curl two connections, which is what makes the batch's parallelism observable
-## at all.
-let server2 = newServer(fakeHandler, noWebsocket, workerThreads = 4)
-var serverThread2: Thread[void]
-proc serveProc2() {.thread.} =
-  {.gcsafe.}:
-    server2.serve(Port(8792), "127.0.0.1")
-createThread(serverThread2, serveProc2)
-server2.waitUntilReady()
-
-putEnv("AWS_ENDPOINT_URL_BEDROCK_RUNTIME", "http://127.0.0.1:8791")
-putEnv("AWS_BEARER_TOKEN_BEDROCK", "fake-token")
+      reply.ok = true
+      reply.action = action
 
 proc freshEngine(sim: SimServer, prompts = true): DecisionEngine =
   result = initDecisionEngine(sim)
+  result.batch = fakeBatch
   for seat in 0 ..< BodyCount:
     result.seats[seat].registered = true
-    result.seats[seat].isLlm = prompts
-    result.seats[seat].prompt = "be decisive"
+    result.seats[seat].isExternal = prompts
     result.seats[seat].label = "fake"
 
 type GameServerArgs = object
@@ -140,83 +87,36 @@ proc playingSim(): SimServer =
   for seat in 0 ..< BodyCount:
     discard result.addPlayer("seat-" & $seat, seat, "")
 
-# --- ONE PARALLEL BATCH per turn ---------------------------------------
+# --- one shared batch carries both seat-local views --------------------
 block:
-  ## (a) one turn issues EXACTLY ONE request per seat, and both are parsed.
   withLock fakeLock:
-    windows.setLen(0)
-    inc fakeEpoch
-    fakeDelayMs = 120
-    fakeStatus = 200
+    batches.setLen(0)
+    fakeDelayMs = 0
+    fakeCause = ""
   var sim = playingSim()
   var engine = freshEngine(sim)
   discard engine.turn(sim, 0, 0)
-  var captured: seq[Window]
+  var captured: seq[seq[BatchCall]]
   withLock fakeLock:
-    captured = windows
-  check captured.len == 2,
-    &"one turn issued {captured.len} provider requests, want exactly 2"
+    captured = batches
+  check captured.len == 1 and captured[0].len == 2,
+    "one turn did not submit both seats in one player batch"
+  if captured.len == 1 and captured[0].len == 2:
+    check captured[0][0].seat == 0 and captured[0][1].seat == 1,
+      "batch seats were not distinct"
+    check captured[0][0].view != captured[0][1].view,
+      "both seats got the same private view"
   for seat in 0 ..< BodyCount:
     check engine.haveIntent[seat], &"seat {seat} got no intent"
     check engine.intents[seat].source == isLlm,
-      &"seat {seat} did not record an LLM intent"
+      &"seat {seat} did not record an external intent"
     check engine.intents[seat].stance == stanceLift,
-      "the provider's reply was not parsed into the intent"
+      "player order was not parsed into the intent"
 
-block:
-  ## (b) the turn loop uses curly's BATCH api, once per attempt — never a
-  ## per-seat call in a loop. That is the property the whole wall-clock
-  ## arithmetic rests on, so it is asserted against the source too.
-  let source = readFile(repoFile("src/bodies/decide.nim"))
-  check source.contains("makeRequests("),
-    "decide.nim does not call curly's batch API"
-  check not source.contains(".makeRequest("),
-    "decide.nim issues a per-seat request — seats must NEVER be queried " &
-    "sequentially"
-  var batchCalls = 0
-  for line in source.splitLines():
-    if line.contains("makeRequests("):
-      inc batchCalls
-  check batchCalls == 1,
-    &"decide.nim calls makeRequests {batchCalls} times; want exactly one " &
-    "batch per attempt"
-
-block:
-  ## (c) and that batch really does run its requests IN PARALLEL: two
-  ## in-flight windows against two origins must INTERSECT.
-  withLock fakeLock:
-    windows.setLen(0)
-    inc fakeEpoch
-    fakeDelayMs = 200
-    fakeStatus = 200
-  var cfg = defaultMatchConfig()
-  let client = newLlmClient(cfg)
-  var batch: RequestBatch
-  var headers: HttpHeaders
-  headers["content-type"] = "application/json"
-  batch.post("http://127.0.0.1:8791/model/x/invoke", headers, "{}", "0")
-  batch.post("http://127.0.0.1:8792/model/x/invoke", headers, "{}", "1")
-  discard client.curl.makeRequests(batch, 5)
-  var captured: seq[Window]
-  withLock fakeLock:
-    captured = windows
-  check captured.len == 2,
-    &"the batch produced {captured.len} in-flight windows, want 2"
-  if captured.len == 2:
-    let intersects = captured[0].startMs < captured[1].endMs and
-      captured[1].startMs < captured[0].endMs
-    check intersects,
-      &"the batch's two calls did NOT overlap in flight " &
-      &"({captured[0].startMs}..{captured[0].endMs} vs " &
-      &"{captured[1].startMs}..{captured[1].endMs}) — they were issued " &
-      "sequentially, which is the documented way to blow the wall clock"
-
-# --- consecutive batches are >= turnSpacingMs apart --------------------
+# --- consecutive batches respect the rate floor ------------------------
 block:
   withLock fakeLock:
-    windows.setLen(0)
-    inc fakeEpoch
-    fakeDelayMs = 10
+    batches.setLen(0)
   var sim = playingSim()
   sim.config.turnSpacingMs = 400
   var engine = freshEngine(sim)
@@ -225,95 +125,43 @@ block:
   discard engine.turn(sim, 1, 0)
   let elapsed = (getMonoTime() - started).inMilliseconds
   check elapsed >= 400,
-    &"two consecutive batches were {elapsed} ms apart, want >= 400 (the " &
-    "inter-batch rate floor)"
+    &"two batches were {elapsed} ms apart, want at least 400"
 
-# --- the per-turn budget is enforced with a HUNG provider --------------
+# --- a hung player gets a bounded fallback -----------------------------
 block:
   withLock fakeLock:
-    windows.setLen(0)
-    inc fakeEpoch
-    fakeDelayMs = 6000              ## far past both deadlines
+    batches.setLen(0)
+    fakeDelayMs = 6000
   var sim = playingSim()
   var engine = freshEngine(sim)
   let started = getMonoTime()
   let records = engine.turn(sim, 0, 0)
-  let elapsed = (getMonoTime() - started).inMilliseconds
-  check elapsed <= int64(sim.config.turnBudgetMs) + 3000,
-    &"a hung provider held the turn for {elapsed} ms against a " &
-    &"{sim.config.turnBudgetMs} ms budget"
-  for seat in 0 ..< BodyCount:
-    check engine.haveIntent[seat],
-      &"seat {seat} was left uncommanded by a hung provider"
-    check engine.intents[seat].source == isFallback,
-      &"seat {seat} did not fall back after a hung provider"
-  var sawFallback = false
-  for record in records:
-    let node = parseJson(record)
-    if node{"k"}.getStr() == "fallback":
-      sawFallback = true
-      check node{"cause"}.getStr() in ["timeout", "transport_error",
-        "parse_error"],
-        "a hung provider recorded cause " & node{"cause"}.getStr()
-  check sawFallback, "a hung provider wrote no `fallback` record"
-  withLock fakeLock:
-    fakeDelayMs = 10
-
-# --- the per-turn budget BOUNDS the turn, not just its attempts --------
-block:
-  ## r1 review N17: the budget was a pre-check only, so an attempt starting a
-  ## millisecond inside it got its whole deadline and a turn's worst case was
-  ## `turnSpacingMs + attempt1Ms + retryMs`. Here both attempt deadlines are
-  ## larger than the budget itself, against a provider that never answers in
-  ## time: the turn must still return inside the budget (plus the 1 000 ms
-  ## whole-second floor curl's timeout granularity forces).
-  withLock fakeLock:
-    windows.setLen(0)
-    inc fakeEpoch
-    fakeDelayMs = 9000
-  var sim = playingSim()
-  sim.config.turnBudgetMs = 4000
-  sim.config.attempt1Ms = 6000
-  sim.config.retryMs = 6000
-  var engine = freshEngine(sim)
-  let started = getMonoTime()
-  discard engine.turn(sim, 0, 0)
   let elapsed = (getMonoTime() - started).inMilliseconds
   check elapsed <= int64(sim.config.turnBudgetMs) + 1500,
-    &"a turn whose attempt deadlines exceed its budget ran {elapsed} ms " &
-    &"against a {sim.config.turnBudgetMs} ms budget"
+    &"hung player held turn for {elapsed} ms"
   for seat in 0 ..< BodyCount:
-    check engine.haveIntent[seat],
-      &"seat {seat} was left uncommanded by the budget clamp"
+    check engine.haveIntent[seat] and engine.intents[seat].source == isFallback,
+      &"seat {seat} had no fallback intent"
+  check records.anyIt(parseJson(it){"k"}.getStr() == "fallback"),
+    "hung player wrote no fallback record"
   withLock fakeLock:
-    fakeDelayMs = 10
+    fakeDelayMs = 0
 
-# --- a 429 with no other candidate model skips the retry ---------------
+# --- provider causes are player data; throttle skips retry -------------
 block:
   withLock fakeLock:
-    windows.setLen(0)
-    inc fakeEpoch
-    fakeStatus = 429
-    fakeBody = "daily token cap"
+    batches.setLen(0)
+    fakeCause = "throttled"
   var sim = playingSim()
   var engine = freshEngine(sim)
   let records = engine.turn(sim, 0, 0)
-  var captured: seq[Window]
+  var captured: seq[seq[BatchCall]]
   withLock fakeLock:
-    captured = windows
-    fakeStatus = 200
-    fakeBody = """{"stance":"lift","aggression":9,"say":"under it"}"""
-  check captured.len == 2,
-    &"a throttled turn issued {captured.len} requests — a retry cannot land " &
-    "when the only candidate model answered 429, so it must be SKIPPED"
-  var causes: seq[string]
-  for record in records:
-    let node = parseJson(record)
-    if node{"k"}.getStr() == "fallback":
-      causes.add node{"cause"}.getStr()
-  check "throttled" in causes,
-    "a 429 was not named `throttled` in the fallback records (it was " &
-    $causes & ")"
+    captured = batches
+    fakeCause = ""
+  check captured.len == 1, "throttled players were retried"
+  check records.anyIt(parseJson(it){"cause"}.getStr() == "throttled"),
+    "player throttle was not named in fallback record"
 
 # --- the BUDGET GUARD switches to scripted and still ends complete/* ---
 block:
@@ -322,7 +170,7 @@ block:
   var engine = freshEngine(sim)
   ## Elapsed is already past the point where two more turns would fit.
   let records = engine.turn(sim, 0, 25)
-  check engine.llmOff, "the budget guard did not fire"
+  check engine.externalOff, "the budget guard did not fire"
   var sawGuard = false
   for record in records:
     if parseJson(record){"k"}.getStr() == "budget_guard":
@@ -409,8 +257,8 @@ block:
 # --- registrations are parsed, and a non-registration chat is dropped --
 block:
   let ok = gameServer.parseRegistration(
-    """{"type":"register","prompt":"go","scripted":null,"policy":"champ"}""")
-  check ok.ok and ok.prompt == "go" and ok.policy == "champ" and
+    """{"type":"register","kind":"external","scripted":null,"policy":"champ"}""")
+  check ok.ok and ok.kind == "external" and ok.policy == "champ" and
     ok.scripted.len == 0,
     "a valid registration did not parse"
   check not gameServer.parseRegistration("hello").ok,
@@ -465,7 +313,7 @@ block:
   check socket != nil, "seat 0 could not connect to the in-process server"
   if socket != nil:
     whisky.send(socket, blobFromSpriteChat($(%*{
-      "type": "register", "prompt": "", "scripted": "pusher",
+      "type": "register", "kind": "scripted", "scripted": "pusher",
       "policy": "test-noshow-0"})), whisky.BinaryMessage)
     ## Ack every frame so `fastMode` advances on the seat rather than on the
     ## 24 fps floor; bounded receive, and bounded overall.
@@ -560,7 +408,7 @@ block:
         sleep(100)
     if result != nil:
       whisky.send(result, blobFromSpriteChat($(%*{
-        "type": "register", "prompt": "", "scripted": "pusher",
+        "type": "register", "kind": "scripted", "scripted": "pusher",
         "policy": label})), whisky.BinaryMessage)
 
   ## SLOT 1 FIRST, then slot 0 — with a real gap, so the admit loop sees slot 1
@@ -605,16 +453,12 @@ block:
       "seat 0's name was not recorded: " & results["names"][0].getStr()
   removeDir(workDir)
 
-server.close()
-joinThread(serverThread)
-server2.close()
-joinThread(serverThread2)
 
 if failures > 0:
   quit("test_engine: " & $failures & " failure(s)", 1)
 echo "test_engine: ok"
 ## Exit WITHOUT running the module teardown. The in-process GAME server above
-## leaves mummy, curly and pixie allocations shared across threads, and tearing
+## leaves mummy and pixie allocations shared across threads, and tearing
 ## them down from an exiting main thread segfaults on a GREEN run — which would
 ## read as a test failure. tests/test_server.nim ends the same way, for the same
 ## reason.

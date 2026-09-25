@@ -2,8 +2,8 @@
 ## and ALWAYS has an answer.
 ##
 ## Cadence: one turn every `turnTicks` (36 ticks = 1.5 s of sim time), 60 turns
-## per full-length episode. At each turn the server builds BOTH seats' request
-## bodies and issues them as ONE PARALLEL BATCH — the ring is a
+## per full-length episode. At each turn the server builds BOTH seats' private
+## views and sends them in ONE BATCH — the ring is a
 ## simultaneous-decision game, so querying seats one after another would double
 ## the wall clock for no gain.
 ##
@@ -11,41 +11,52 @@
 ## the single retry gets `retryMs`, the inter-batch floor is a bounded sleep, and
 ## the whole turn is wrapped in a monotonic `turnBudgetMs` deadline — each
 ## attempt's own deadline is clamped to what is left of it, so the turn cannot be
-## overrun by an attempt that started just inside the budget. A provider
-## throttle with no other candidate model skips the retry outright (it cannot
-## land). On a second failure the seat plays the `pusher` intent for that turn
+## overrun by an attempt that started just inside the budget. A player reported
+## throttle skips the retry. On a second failure the seat plays `pusher`
 ## and a `fallback` record names the cause. No failure mode leaves a bug
 ## uncommanded: the controller always has an intent — this turn's, else last
 ## turn's, else `pusher`'s. There is no sampling loop, no unbounded search and no
 ## retry-until-success anywhere.
 
-import std/[monotimes, os, strutils, times]
-import curly
-import sim, intents, control, baselines, llm
+import std/[monotimes, os, times]
+import sim, intents, control, baselines
 
 type
+  BatchCall* = object
+    seat*: int
+    view*: string
+    turn*: int
+    retry*: bool
+
+  BatchReply* = object
+    ok*: bool
+    action*: string
+    cause*: string
+    error*: string
+
+  BatchFn* = proc(calls: seq[BatchCall], timeoutSeconds: int): seq[BatchReply]
+    {.closure, gcsafe.}
+
   SeatPolicy* = object
     ## What one seat registered as. A seat that registers with neither field —
     ## or never registers at all — is `pusher`.
-    isLlm*: bool
-    prompt*: string
+    isExternal*: bool
     baseline*: Baseline
     label*: string
     registered*: bool
 
   DecisionEngine* = object
-    client*: LlmClient
+    batch*: BatchFn
     ctl*: ControlState
     seats*: seq[SeatPolicy]
     intents*: seq[BugIntent]
     haveIntent*: seq[bool]
     lastBatchStart*: MonoTime
     batchStarted*: bool
-    llmOff*: bool              ## the budget guard fired; scripted from here on
+    externalOff*: bool              ## the budget guard fired; scripted from here on
     records*: seq[string]      ## chat records queued for the replay writer
 
 proc initDecisionEngine*(sim: SimServer): DecisionEngine =
-  result.client = newLlmClient(sim.config)
   result.ctl = initControlState()
   result.seats = newSeq[SeatPolicy](BodyCount)
   result.intents = newSeq[BugIntent](BodyCount)
@@ -56,7 +67,7 @@ proc initDecisionEngine*(sim: SimServer): DecisionEngine =
     result.intents[i] = defaultIntent()
 
 proc policyKind*(engine: DecisionEngine, seat: int): string =
-  if seat >= 0 and seat < engine.seats.len and engine.seats[seat].isLlm:
+  if seat >= 0 and seat < engine.seats.len and engine.seats[seat].isExternal:
     "llm"
   else:
     "scripted"
@@ -106,21 +117,17 @@ proc turn*(engine: var DecisionEngine, sim: SimServer, turnIndex: int,
     budget = initDuration(milliseconds = max(1, sim.config.turnBudgetMs))
     turnStart = getMonoTime()
     seats = sim.seatCount()
-  ## Throttle state is PER TURN: a daily-token 429 on turn k says nothing about
-  ## turn k+1 (the sidecar's window may have rolled), so the flag is cleared
-  ## here and only suppresses this turn's retry.
-  engine.client.throttled = false
 
   # --- budget guard: settle EARLY rather than overrun ----------------------
   # If two more full turns (batch spacing included) would not fit inside the
-  # engine's own wall-clock stop, switch the LLM off for the rest of the
+  # engine's own wall-clock stop, switch external calls off for the rest of the
   # episode and finish on the scripted layer (microseconds per turn), so the
   # episode ends complete/* instead of deadline.
-  if not engine.llmOff:
+  if not engine.externalOff:
     let turnSeconds =
       (sim.config.turnSpacingMs + sim.config.turnBudgetMs + 999) div 1000
     if elapsedSeconds + 2 * turnSeconds > sim.config.wallClockBudgetSeconds:
-      engine.llmOff = true
+      engine.externalOff = true
       result.add(budgetGuardRecord(turnIndex,
         max(0, sim.config.wallClockBudgetSeconds - elapsedSeconds)))
       echo "physics-bodies: budget guard fired at turn ", turnIndex,
@@ -129,32 +136,26 @@ proc turn*(engine: var DecisionEngine, sim: SimServer, turnIndex: int,
   # --- which seats need a call? -------------------------------------------
   var open: seq[int]
   for seat in 0 ..< seats:
-    if engine.seats[seat].isLlm and not engine.llmOff and
-        not engine.client.disabled:
+    if engine.seats[seat].isExternal and not engine.externalOff:
       open.add(seat)
-    elif engine.seats[seat].isLlm:
-      ## An LLM seat that CANNOT call the LLM this turn is a FALLBACK, not a
-      ## scripted policy, and `fallback.cause` names both reasons it happens.
-      ## Recording it is what makes the two countable: without this an LLM seat
-      ## with no key reported llmTurns 0 AND fallbackTurns 0.
+    elif engine.seats[seat].isExternal:
+      ## An external seat skipped by the budget guard is a FALLBACK. Record it
+      ## so accepted external orders and fallback turns remain countable.
       var intent = engine.pusherFor(sim, seat)
       intent.source = isFallback
       engine.installIntent(seat, intent)
-      let cause = if engine.llmOff: "budget_guard" else: "no_credentials"
-      result.add(fallbackRecord(turnIndex, seat, 1, cause,
-        "the LLM is unavailable for this turn; playing pusher"))
+      result.add(fallbackRecord(turnIndex, seat, 1, "budget_guard",
+        "the decision budget is exhausted; playing pusher"))
       echo "physics-bodies llm: seat ", seat,
-        " falling back to pusher (", cause, ") on turn ", turnIndex
+        " falling back to pusher (budget_guard) on turn ", turnIndex
     else:
       var intent = engine.scriptedFor(sim, seat, engine.seats[seat].baseline)
       intent.source = isScripted
       engine.installIntent(seat, intent)
 
   # --- the rate floor ------------------------------------------------------
-  # The Bedrock sidecar caps 30 requests/minute PER EPISODE, and two seats at a
-  # fast turn sit right on it. Hold the START of consecutive batches
-  # `turnSpacingMs` apart, which pins the episode at 20 req/min with a 50 %
-  # margin. The cert fixture sets it to 0, so offline runs pay nothing.
+  # Hold the start of consecutive player batches `turnSpacingMs` apart. The
+  # cert fixture sets it to zero, so offline runs pay nothing.
   if open.len > 0 and engine.batchStarted and sim.config.turnSpacingMs > 0:
     let since = (getMonoTime() - engine.lastBatchStart).inMilliseconds.int
     if since < sim.config.turnSpacingMs:
@@ -165,9 +166,9 @@ proc turn*(engine: var DecisionEngine, sim: SimServer, turnIndex: int,
 
   # --- up to two PARALLEL batches -----------------------------------------
   var attempt = 0
+  var lastCause = newSeq[string](seats)
+  var failFast: seq[int]
   while open.len > 0 and attempt < 2:
-    if engine.client.disabled:
-      break
     if getMonoTime() - turnStart >= budget:
       for seat in open:
         result.add(fallbackRecord(turnIndex, seat, attempt + 1, "timeout",
@@ -179,77 +180,59 @@ proc turn*(engine: var DecisionEngine, sim: SimServer, turnIndex: int,
     ## `turnSpacingMs + attempt1Ms + retryMs` (~20 s) rather than the
     ## `turnBudgetMs` the design wraps the turn in (r1 review N17). Each
     ## attempt's deadline is now clamped to what is LEFT of the budget, floored
-    ## at 1 000 ms because curl's CURLOPT_TIMEOUT granularity is whole seconds
-    ## and floors — so a turn can overshoot by at most that floor.
+    ## at 1 000 ms because the player socket deadline is in whole seconds.
     let
       spentMs = (getMonoTime() - turnStart).inMilliseconds.int
       remainingMs = max(0, sim.config.turnBudgetMs - spentMs)
       configuredMs =
         if attempt == 0: sim.config.attempt1Ms else: sim.config.retryMs
       deadlineMs = max(1000, min(configuredMs, remainingMs))
-    var batch: RequestBatch
+    var calls: seq[BatchCall]
     for seat in open:
-      var user = seatViewJson(engine.viewFor(sim, seat))
-      if attempt > 0:
-        user.add("\n\nYour previous reply was not usable. Reply with ONLY " &
-          "the JSON object described above, starting with '{'.")
-      let request = engine.client.requestFor(
-        SystemPrompt, userMessage(engine.seats[seat].prompt, user))
-      batch.post(request.url, request.headers, request.body, $seat)
+      calls.add BatchCall(seat: seat,
+        view: seatViewJson(engine.viewFor(sim, seat)),
+        turn: turnIndex, retry: attempt > 0)
     let started = getMonoTime()
-    ## curly hands the deadline to CURLOPT_TIMEOUT, whose granularity is WHOLE
-    ## SECONDS and whose conversion FLOORS; sim_config rejects a sub-second
-    ## value, so this division is an identity (9000 -> 9 s, 5000 -> 5 s, and
-    ## 9 + 5 = 14 s inside the 16 s turnBudgetMs cap).
-    let responses = engine.client.curl.makeRequests(
-      batch, max(1, deadlineMs div 1000))
+    let replies = engine.batch(calls, max(1, deadlineMs div 1000))
     let latency = (getMonoTime() - started).inMilliseconds.int
     var stillOpen: seq[int]
     for position, seat in open:
       var cause = "parse_error"
       try:
-        let text = engine.client.textOf(
-          responses[position].response, responses[position].error,
-          batch[position].url)
-        var intent = parseIntentReply(text, engine.intents[seat],
+        let reply = replies[position]
+        if not reply.ok:
+          cause = if reply.cause.len > 0: reply.cause else: "transport_error"
+          raise newException(ValueError, reply.error)
+        var intent = parseIntentReply(reply.action, engine.intents[seat],
           engine.haveIntent[seat])
         intent.source = isLlm
         intent.latencyMs = latency
         engine.installIntent(seat, intent)
       except CatchableError as error:
-        if responses[position].error.len > 0:
-          cause = (if "timeout" in responses[position].error.toLowerAscii():
-                     "timeout" else: "transport_error")
-        elif error.msg.startsWith("llm throttled"):
-          ## Name the throttle for what it is. Reporting a 429 as
-          ## `parse_error` is what made a hosted log unreadable.
-          cause = "throttled"
         result.add(fallbackRecord(turnIndex, seat, attempt + 1, cause,
           error.msg))
+        lastCause[seat] = cause
         echo "physics-bodies llm: seat ", seat, " attempt ", attempt + 1,
           " failed, falling back if it fails again: ", error.msg
         stillOpen.add(seat)
     open = stillOpen
     inc attempt
-    if engine.client.throttled and open.len > 0:
-      ## FAIL FAST. The only model left answered 429, so the retry batch would
-      ## be refused the same way: spend the rest of the turn on the scripted
-      ## layer instead of on a call that cannot land.
-      echo "physics-bodies llm: provider throttled with no other candidate; ",
-        open.len, " seat(s) fall back for turn ", turnIndex
-      break
+    if attempt == 1:
+      var retryable: seq[int]
+      for seat in open:
+        if lastCause[seat] in ["throttled", "no_credentials"]:
+          failFast.add(seat)
+        else:
+          retryable.add(seat)
+      open = retryable
 
   # --- anything still open plays pusher for this turn ----------------------
+  open.add(failFast)
   for seat in open:
     var intent = engine.pusherFor(sim, seat)
     intent.source = isFallback
     engine.installIntent(seat, intent)
-    let cause =
-      if engine.client.disabled or engine.client.transport == ltNone:
-        "no_credentials"
-      elif engine.llmOff: "budget_guard"
-      elif engine.client.throttled: "throttled"
-      else: "parse_error"
+    let cause = if lastCause[seat].len > 0: lastCause[seat] else: "timeout"
     result.add(fallbackRecord(turnIndex, seat, 2, cause,
       "seat fell back to the pusher intent"))
     ## "falling back" is the phrase phase 60 greps the GAME log for.

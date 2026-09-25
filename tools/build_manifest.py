@@ -45,16 +45,15 @@ GET /player?slot=<N>&token=<T> upgrades to a websocket. A slot with a
 configured token demands exactly that token; a mismatch is refused 403 and the
 socket is closed.
 
-A seat sends ONE Sprite v1 chat message carrying its registration and then only
-receives:
+A seat sends a Sprite v1 chat registration:
 
-  {"type":"register","prompt":"<strategy text or empty>",
+  {"type":"register","kind":"external"|"scripted",
    "scripted":"pusher"|"anchor"|null,"policy":"<free label>"}
 
-A non-empty `prompt` makes the seat an LLM seat (capped at 4000 runes at the
-transport, truncated never rejected, and NEVER written to the replay or the
-results). `scripted` names a published baseline. A seat that sets neither field,
-or never registers at all, is `pusher`, and the server logs that out loud. The
+An external seat receives a private `turn` text frame and returns a `decision`
+text frame with the same `id` and an `action` object. The game validates and
+repairs that order. Model calls, prompts, and credentials stay in the player.
+`scripted` names a published baseline. A seat that never registers is `pusher`. The
 registration is re-sent on a bounded schedule because joins are slot-sequential
 and the lobby sends frames to a socket before it is admitted; the server HOLDS
 an unappliable registration rather than dropping it.
@@ -249,9 +248,6 @@ CONFIG_SCHEMA = {
                           "default": 72},
         "fastMode": {"type": "boolean", "default": True},
         "showPlayerLabels": {"type": "boolean", "default": False},
-        "model": {"type": "string"},
-        "maxOutputTokens": {"type": "integer", "minimum": 64, "maximum": 8192,
-                            "default": 900},
         "speed": {"type": "integer", "minimum": 1, "maximum": 16,
                   "default": 1},
     },
@@ -435,10 +431,7 @@ def build() -> dict:
                 "type": "game",
                 "image": IMAGE,
                 "run": ["/bin/physics-bodies"],
-                "env": {
-                    "ANTHROPIC_API_KEY_URI":
-                        "secret://coworld/physics-bodies/anthropic_api_key"
-                },
+                "env": {},
                 "source_url": SOURCE_URL,
             },
             "config_schema": CONFIG_SCHEMA,

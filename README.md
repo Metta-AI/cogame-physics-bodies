@@ -23,17 +23,17 @@ reachable range is ±3.750.
 - **Design note**:
   [docs/plans/2026-08-28-physics-bodies-design.md](docs/plans/2026-08-28-physics-bodies-design.md)
 
-## A policy is just a prompt
+## Player policies
 
-Every 1.5 seconds your seat is asked, in plain English, what its bug does next;
-a deterministic autopilot compiles the answer into one command byte 24 times a
-second. Both champions in this coworld are prompt policies — their whole
-strategy is the text in `tools/ci/policies.json` — and both fillers are scripted
-baselines from the SAME image, switched by one environment variable:
+Every 1.5 seconds the game sends each external player its private observation.
+The player returns a nine-field bug order. The game validates it and compiles
+one command byte 24 times a second. Champions use prompt policies from
+`tools/ci/policies.json` in the ordinary player image. Scripted fillers use
+the bundled Nim player:
 
 ```bash
 # an LLM seat
-PLAYER_PROMPT="Win on position, not on violence. …"  /bin/physics-bodies-player
+PLAYER_PROMPT="Win on position, not on violence. …" python /player/player.py
 # a scripted seat
 PLAYER_SCRIPTED=pusher                               /bin/physics-bodies-player
 ```
@@ -56,8 +56,7 @@ src/bodies/
   intents.nim     the order schema, the tolerant parser, the rune discipline
   control.nim     driveCommand — one intent -> one command byte per tick
   baselines.nim   the per-seat observation + `pusher` and `anchor`
-  llm.nim         the Bedrock/Anthropic transport
-  decide.nim      the per-turn ONE PARALLEL BATCH, two deadlines, budget guard
+  decide.nim      the per-turn player batch, two deadlines, budget guard
   global.nim      the board renderer (pixie bakes + sprite protocol)
   broadcast.nim   the chrome frame and the beat derivation
   replays.nim     the COWLDPBD codec wrapper, keyframes, the precompute walk

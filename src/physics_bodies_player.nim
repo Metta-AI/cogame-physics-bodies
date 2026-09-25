@@ -1,22 +1,12 @@
-## The physics-bodies player container: a policy is just a prompt.
+## The bundled scripted player container.
 ##
-## This process is DELIBERATELY thin. It connects to its seat, sends ONE Sprite
-## v1 chat message carrying its registration, and then only receives. Every
-## decision happens inside the GAME server, because that is the only container
-## the platform injects the `anthropic_api_key` coworld secret into, and because
-## keeping the control layer server-side is what makes the recorded command-byte
-## log reproducible with no network in the loop.
+## It registers a published baseline. The game runs that baseline and records
+## the resulting command bytes. External policies use the ordinary player image.
 ##
-##   PLAYER_PROMPT        a strategy in plain English -> this seat is an LLM seat
 ##   PLAYER_SCRIPTED      pusher | anchor            -> this seat is scripted
 ##   PLAYER_POLICY_LABEL  a free label for the replay's `register` record
 ##
-## A seat that sets neither is `pusher`. To field your own policy, reuse this
-## image and set PLAYER_PROMPT:
-##
-##   coworld upload-policy <physics-bodies-image> --name my-bug \
-##     --run /bin/physics-bodies-player \
-##     --secret-env PLAYER_PROMPT="<your strategy>"
+## A seat that sets neither is `pusher`.
 
 import std/[json, options, os, strutils]
 import bitworld/spriteprotocol
@@ -29,11 +19,11 @@ const
   ResendEveryFrames = 24     ## ~1 s of frames at 24 Hz.
   ReconnectAttempts = 6
 
-proc registrationBlob(prompt, scripted, policy: string): string =
+proc registrationBlob(scripted, policy: string): string =
   ## The one registration message. `scripted` is JSON null when the seat is an
   ## LLM seat, so the server can tell "no baseline named" from "pusher named
   ## explicitly".
-  var node = %*{"type": "register", "prompt": prompt, "policy": policy}
+  var node = %*{"type": "register", "kind": "scripted", "policy": policy}
   if scripted.len > 0:
     node["scripted"] = %scripted
   else:
@@ -54,16 +44,14 @@ when isMainModule:
   if url.len == 0:
     quit("COWORLD_PLAYER_WS_URL is not set", 1)
   let
-    prompt = getEnv("PLAYER_PROMPT").strip()
     scripted = getEnv("PLAYER_SCRIPTED").strip()
     label = block:
       let explicit = getEnv("PLAYER_POLICY_LABEL").strip()
       if explicit.len > 0: explicit
-      elif prompt.len > 0: "prompt"
       elif scripted.len > 0: scripted
       else: "pusher"
   echo "physics-bodies player: kind=",
-    (if prompt.len > 0: "llm" else: "scripted"),
+    "scripted",
     " baseline=", (if scripted.len > 0: scripted else: "pusher"),
     " label=", label
 
@@ -105,7 +93,7 @@ when isMainModule:
   while true:
     var sessionFrames = 0
     try:
-      socket.send(registrationBlob(prompt, scripted, label), BinaryMessage)
+      socket.send(registrationBlob(scripted, label), BinaryMessage)
       var resends = 0
       while true:
         let received = socket.receiveMessage()
@@ -115,7 +103,7 @@ when isMainModule:
         if resends < RegistrationResends and
             sessionFrames mod ResendEveryFrames == 1:
           inc resends
-          socket.send(registrationBlob(prompt, scripted, label), BinaryMessage)
+          socket.send(registrationBlob(scripted, label), BinaryMessage)
         socket.send(readyBlob(), BinaryMessage)
     except CatchableError as error:
       echo "physics-bodies player: socket closed (", error.msg, ")"

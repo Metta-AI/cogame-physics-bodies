@@ -2,7 +2,8 @@
 ## nim c -d:release --path:src -o:physics-bodies-train-bridge tools/train_bridge.nim
 
 import std/[json, os]
-import bodies/[baselines, control, intents, llm, sim]
+import bodies/[baselines, control, intents, sim]
+import policy_prompt
 
 const
   OperatorPrompt = "Win the ring match using only your own observation."

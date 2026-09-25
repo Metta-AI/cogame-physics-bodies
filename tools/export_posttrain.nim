@@ -2,7 +2,8 @@
 ## Usage: nim r --path:src tools/export_posttrain.nim OUTPUT MATCHES [FIRST_SEED] [default|blitz]
 
 import std/[json, os, osproc, strutils]
-import bodies/[sim, intents, control, baselines, llm]
+import bodies/[sim, intents, control, baselines]
+import policy_prompt
 
 const OperatorPrompt = "Win the ring match using only your own observation."
 

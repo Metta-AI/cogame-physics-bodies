@@ -202,6 +202,24 @@ jobs:
           SMOKE_SEATS: "2"
         run: ./tools/ci/docker_smoke.sh "${IMAGE}:ci"
 
+      - name: Mixed ordinary and scripted player smoke
+        env:
+          SMOKE_SLUG: ${{ env.SLUG }}
+          SMOKE_REQUIRE_REPLAY_JSON: "0"
+          SMOKE_SEATS: "2"
+          SMOKE_ORDINARY_SLOT: "0"
+          SMOKE_REPLAY_OUT: dist/smoke/mixed.replay
+        run: |
+          ./tools/ci/docker_smoke.sh "${IMAGE}:ci"
+          python3 tools/replay_summary.py dist/smoke/mixed.replay > dist/smoke/mixed.json
+          python3 - <<'PY'
+          import json
+          summary = json.load(open("dist/smoke/mixed.json"))
+          external = [row for row in summary["intents"] if row["source"] == "llm"]
+          assert external and summary["fallbacks"] == 0, summary
+          print(f"mixed ordinary actions: {len(external)}; fallbacks: 0")
+          PY
+
       # The replay this episode produced is the ONLY replay in CI that is
       # known to be a real, current-format episode of this game. wasm-viewer
       # downloads it and loads it in a browser, so the viewer is tested

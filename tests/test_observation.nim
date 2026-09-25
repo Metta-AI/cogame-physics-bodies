@@ -3,7 +3,7 @@
 
 import std/[json, random, strformat, strutils, tables]
 import bitworld/spriteprotocol
-import bodies/[sim, global, broadcast, intents, control, baselines, llm]
+import bodies/[sim, global, broadcast, intents, control, baselines]
 import helpers
 
 var failures = 0
@@ -47,7 +47,7 @@ block:
     for seat in 0 ..< BodyCount:
       let
         view = seatView(sim, seat, false, defaultIntent())
-        message = userMessage(SecretPrompt, seatViewJson(view))
+        message = SecretPrompt & seatViewJson(view)
         body = sim.bodyOfSeat(seat)
         foe = 1 - body
 
