@@ -435,10 +435,7 @@ def build() -> dict:
                 "type": "game",
                 "image": IMAGE,
                 "run": ["/bin/physics-bodies"],
-                "env": {
-                    "ANTHROPIC_API_KEY_URI":
-                        "secret://coworld/physics-bodies/anthropic_api_key"
-                },
+                "env": {},
                 "source_url": SOURCE_URL,
             },
             "config_schema": CONFIG_SCHEMA,

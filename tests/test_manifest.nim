@@ -257,11 +257,8 @@ block:
 
 # --- the secret namespace EQUALS game.name --------------------------
 block:
-  let uri = game["runnable"]["env"]["ANTHROPIC_API_KEY_URI"].getStr()
-  check uri == "secret://coworld/" & game["name"].getStr() &
-    "/anthropic_api_key",
-    &"the secret namespace `{uri}` does not equal game.name " &
-    "(cooperative-hunting, 2026-08-25)"
+  doAssert game{"runnable"}{"env"}{"ANTHROPIC_API_KEY_URI"}.isNil,
+    "hosted LLM uses the platform sidecar without provider secrets"
   let manifestName = game["name"].getStr()
   check manifestName == GameName,
     &"game.name `{manifestName}` != the engine's GameName `{GameName}`"
