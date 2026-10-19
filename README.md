@@ -139,3 +139,27 @@ the declared-acceptable `deadline`); a champion seat's intents must carry
 ## Licence
 
 MIT. Font licence in [data/FONT_LICENSE.txt](data/FONT_LICENSE.txt).
+
+## Episode prompt diversity
+
+`promptVariant` selects `canonical`, `plain`, `numbered`, `questions`, `reordered`,
+`heldout-briefing`, `heldout-reference`, or `mixed`. Canonical preserves the original prompt bytes.
+Mixed requires an explicit nonnegative `promptSeed` and selects training wording using `promptSeed % 5`.
+Selection stays fixed across seats, rounds, and retries, independently of simulation randomness.
+
+Only the introduction changes. Common rules, strategy text, observation privacy, and reply semantics remain fixed.
+Prompt selection belongs to the decision engine, outside hashed physics and replay keyframes.
+
+The JSONL bridge accepts prompt fields on reset. Append `text` to its command for native intent responses.
+Numeric mode retains the existing action heads. Both modes report selection and exact message hashes in
+`semantic_view.prompt_template`. Resets default to the training split and reject held-out wording there.
+
+The source exporter accepts `OUTPUT MATCHES [FIRST_SEED] [VARIANT] [PROMPT_VARIANT] [PROMPT_SEED]`.
+It requires a clean committed checkout and emits private complete candidates, not ready-to-train examples.
+Shared Coworld validation and independent content-bound review own admission. Scenario seed families remain
+identical across wording and game variants. Source export rejects held-out wordings.
+
+For matched evaluation, fix policies, game seeds, seat assignment, operator prompts, decoder settings, and
+published budgets. Compare canonical and mixed training on training and held-out wordings. Report scores,
+invalid replies, retries, fallback rate, and between-wording variance, including failed and incomplete games.
+Deterministic fixture equivalence does not establish improved learning stability.

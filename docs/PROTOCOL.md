@@ -199,3 +199,16 @@ With `COGAME_EVENTS_URI` set (file:// only), the game writes JSON lines — one 
 per event (`contact`, `shove`, `stagger`, `knockdown`, `rim_slip`, `ring_out`,
 `round_end`, `intent`, `phase`) plus a mandatory trailing summary row carrying
 `type`, `ticks`, `events` and `gameVersion`.
+
+## Private prompt evidence
+
+Game configuration accepts `promptVariant` and `promptSeed`; these do not enter replay physics configuration.
+For local qualification, `PHYSICS_HOST_TRACE_PATH` writes private host decisions and final results.
+`PHYSICS_ATTEMPT_TRACE_DIR` writes exact requests, raw provider replies and headers, parser results,
+selected attempts, and applied intents. `PHYSICS_SOURCE_REVISION` records the pinned implementation.
+Files are created exclusively with mode 0600 and are never uploaded as spectator artifacts.
+Absent provider log probabilities remain null.
+
+Bridge resets accept `split` (`train`, `validation`, or `test`), defaulting to `train`.
+Training rejects held-out introductions. Text mode uses the native tolerant intent parser, including
+previous-intent repair and note/say normalization. Numeric encoding and its seven action heads are unchanged.

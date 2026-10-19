@@ -2,7 +2,7 @@
 ## nim c -d:release --path:src -o:physics-bodies-train-bridge tools/train_bridge.nim
 
 import std/[json, os]
-import bodies/[baselines, control, intents, llm, sim]
+import bodies/[baselines, control, intents, llm, sim, prompts]
 
 const
   OperatorPrompt = "Win the ring match using only your own observation."
@@ -120,30 +120,39 @@ proc action(intent: BugIntent): JsonNode =
     "posture_bias": $intent.postureBias, "lead_ticks": intent.leadTicks,
     "circle_dir": intent.circleDir}
 
-proc decision(view: SeatView, id: int): JsonNode =
+proc decision(view: SeatView, id: int, selection: PromptSelection, textMode: bool): JsonNode =
+  let user = userMessage(OperatorPrompt, seatViewJson(view))
+  let system = systemPrompt(selection)
   let semantic = parseJson(seatViewJson(view))
+  semantic["prompt_template"] = selection.promptMetadata(system, user)
   var properties = newJObject()
   var required = newJArray()
   for head in heads():
     let name = head["name"].getStr()
     properties[name] = %*{"enum": head["choices"]}
     required.add(%name)
-  %*{
+  result = %*{
     "kind": "decision", "game": "physics-bodies",
     "decision_id": id, "seat": view.seat, "engine_seat": view.seat,
     "turn": view.turn, "semantic_view": semantic,
     "inbox": [], "messages": [
-      {"role": "system", "content": SystemPrompt},
-      {"role": "user", "content": userMessage(OperatorPrompt, $semantic)}
+      {"role": "system", "content": system},
+      {"role": "user", "content": user}
     ], "speech_messages": [],
     "action_schema": {"type": "object", "properties": properties,
       "required": required}, "typed_question": newJNull()
   }
 
+  if textMode:
+    properties["note"] = %*{"type": "string", "maxLength": MaxNoteRunes}
+    properties["say"] = %*{"type": "string", "maxLength": MaxSayRunes}
+
 when isMainModule:
   let args = commandLineParams()
-  if args.len != 2:
-    quit("usage: physics-bodies-train-bridge MANIFEST VARIANT", 1)
+  if args.len notin 2 .. 3:
+    quit("usage: physics-bodies-train-bridge MANIFEST VARIANT [text]", 1)
+  let textMode = args.len == 3
+  if textMode: doAssert args[2] == "text"
   let variant = args[1]
   doAssert variant in Variants
   let manifest = parseFile(args[0])
@@ -152,6 +161,7 @@ when isMainModule:
     if entry["id"].getStr() == variant:
       variantConfig = entry["game_config"]
   doAssert not variantConfig.isNil
+  var selection: PromptSelection
   var config: GameConfig
   var game: SimServer
   var ctl: ControlState
@@ -167,6 +177,11 @@ when isMainModule:
     case request["kind"].getStr()
     of "reset":
       doAssert request["players"].getInt() == BodyCount
+      selection = promptSelection(request)
+      let split = if request.hasKey("split"): request["split"].getStr() else: "train"
+      doAssert split in ["train", "validation", "test"]
+      if split == "train" and selection.selectedVariant in {pvHeldoutBriefing, pvHeldoutReference}:
+        raise newException(ValueError, "held-out wording cannot enter training")
       config = defaultGameConfig()
       let runtime = copy(variantConfig)
       runtime["tokens"] = %*["t0", "t1"]
@@ -186,7 +201,7 @@ when isMainModule:
       lastTurn = game.tickCount div config.turnTicks
       seat = 0
       id = 0
-      response = views[seat].decision(id)
+      response = views[seat].decision(id, selection, textMode)
     of "encode":
       doAssert game.phase != GameOver
       response = %*{"decision_id": id,
@@ -194,15 +209,17 @@ when isMainModule:
         "action_heads": heads()}
     of "teacher":
       doAssert game.phase != GameOver
-      response = %*{"response": $action(scriptedIntent(ctl.params,
-        views[seat], blPusher))}
+      let teacher = scriptedIntent(ctl.params, views[seat], blPusher)
+      response = %*{"response": $(if textMode: teacher.intentAction() else: action(teacher))}
     of "step":
       doAssert game.phase != GameOver and request["decision_id"].getInt() == id
-      let candidate = parseJson(request["response"].getStr())
-      for head in heads():
-        doAssert candidate[head["name"].getStr()] in head["choices"]
+      let candidate = extractJsonObject(request["response"].getStr())
+      if not textMode:
+        for head in heads():
+          doAssert candidate[head["name"].getStr()] in head["choices"]
       let parsed = parseIntentObject(candidate, orders[seat], haveIntent[seat])
-      doAssert action(parsed) == candidate
+      if not textMode: doAssert action(parsed) == candidate
+      let executed = if textMode: parsed.intentAction() else: action(parsed)
       orders[seat] = parsed
       haveIntent[seat] = true
       inc id
@@ -233,10 +250,10 @@ when isMainModule:
           seat = 0
           for actor in 0 ..< BodyCount:
             views[actor] = seatView(game, actor, haveIntent[actor], orders[actor])
-          observation = views[seat].decision(id)
+          observation = views[seat].decision(id, selection, textMode)
       else:
-        observation = views[seat].decision(id)
-      response = %*{"kind": "accepted", "action": candidate,
+        observation = views[seat].decision(id, selection, textMode)
+      response = %*{"kind": "accepted", "action": executed,
         "observation": observation}
     else:
       raise newException(ValueError, "unknown command: " & request["kind"].getStr())

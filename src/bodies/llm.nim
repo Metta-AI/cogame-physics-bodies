@@ -23,7 +23,7 @@
 import std/[json, os, strutils]
 import bitworld/runtime
 import curly
-import sim_types, intents
+import sim_types, intents, prompts
 
 const
   AnthropicUrl = "https://api.anthropic.com/v1/messages"
@@ -206,9 +206,9 @@ proc textOf*(client: LlmClient, response: Response, error, url: string): string 
     raise newException(LlmError, "reply cut off at max_tokens before any " &
       "JSON: " & result.truncateRunes(160).replace("\n", " "))
 
-const SystemPrompt* = """
-You are ONE of TWO four-legged robot bugs in a round sumo ring, seen from
-above. Coordinates are metres from the arena's bottom-left corner; x runs
+const CanonicalIntroduction = "You are ONE of TWO four-legged robot bugs in a round sumo ring, seen from\nabove. "
+
+const Rules = """Coordinates are metres from the arena's bottom-left corner; x runs
 right, y runs up. Bearings are degrees counter-clockwise from east: 0 = right,
 90 = up, 180 = left, 270 = down. The ring is a circle centred on (4.80, 3.20).
 It starts 3.00 m in radius and SHRINKS from 6 seconds into every round, down to
@@ -255,6 +255,18 @@ Schema:
  "circle_dir":-1 or 1,             // -1 = clockwise, 1 = counter-clockwise
  "say":"<=48 chars"}               // spectators only; the other bug never sees it
 """
+
+proc systemPrompt*(selection: PromptSelection): string =
+  let introduction = case selection.selectedVariant
+    of pvCanonical: CanonicalIntroduction
+    of pvPlain: "You control one of two four-legged robot bugs. The game is viewed from above and takes place in a round sumo ring. "
+    of pvNumbered: "1. You control ONE robot bug.\n2. There are TWO bugs, each with four legs.\n3. They play in a round sumo ring viewed from above. "
+    of pvQuestions: "What do you control? One of two four-legged robot bugs. Where do they play? In a round sumo ring, viewed from above. "
+    of pvReordered: "A round sumo ring is viewed from above. Two four-legged robot bugs play there, and you control ONE of them. "
+    of pvHeldoutBriefing: "Your assignment is to control a single four-legged robot bug. There are two such bugs in a round sumo ring, shown from above. "
+    of pvHeldoutReference: "Control: one robot bug. Participants: two four-legged robot bugs. Arena: a round sumo ring. View: from above. "
+    of pvMixed: raise newException(ValueError, "mixed selection must resolve to a training wording")
+  introduction & Rules
 
 proc operatorBlock*(prompt: string): string =
   ## The seat's own PLAYER_PROMPT, under a heading that tells the model how
