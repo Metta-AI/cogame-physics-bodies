@@ -155,8 +155,6 @@ jobs:
           nim c -d:release --parallelBuild:1 --path:src -o:/tmp/physics-bodies-train-bridge tools/train_bridge.nim
           python3 tools/test_train_bridge.py /tmp/physics-bodies-train-bridge
           python3 tools/test_prompt_games.py /tmp/physics-bodies-train-bridge
-          nim c -d:release --parallelBuild:1 --path:src -o:/tmp/physics-source tools/export_posttrain.nim
-          python3 tools/test_source_prompts.py /tmp/physics-source /tmp/physics-source-proof
 
   # ---------------------------------------------------------------------
   # Packaging smoke: the production image builds, and one real episode runs

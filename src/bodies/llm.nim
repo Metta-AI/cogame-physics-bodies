@@ -230,7 +230,9 @@ Every 1.5 seconds you set your ORDER for the next 1.5 seconds. A deterministic
 autopilot runs it 24 times a second: it steers, it leads a moving target, it
 keeps you off the rim unless you tell it not to. You choose WHAT to do and HOW
 hard. You CANNOT talk to the other bug and it never sees anything you write.
-Reply with a single JSON object and NOTHING else. Your reply MUST begin with '{'.
+"""
+
+const ReplyRules = """Reply with a single JSON object and NOTHING else. Your reply MUST begin with '{'.
 Schema:
 {"note":"<=160 chars, your reasoning",
  "stance":"charge"|"brace"|"circle"|"lift"|"retreat"|"centre",
@@ -257,16 +259,37 @@ Schema:
 """
 
 proc systemPrompt*(selection: PromptSelection): string =
-  let introduction = case selection.selectedVariant
-    of pvCanonical: CanonicalIntroduction
-    of pvPlain: "You control one of two four-legged robot bugs. The game is viewed from above and takes place in a round sumo ring. "
-    of pvNumbered: "1. You control ONE robot bug.\n2. There are TWO bugs, each with four legs.\n3. They play in a round sumo ring viewed from above. "
-    of pvQuestions: "What do you control? One of two four-legged robot bugs. Where do they play? In a round sumo ring, viewed from above. "
-    of pvReordered: "A round sumo ring is viewed from above. Two four-legged robot bugs play there, and you control ONE of them. "
-    of pvHeldoutBriefing: "Your assignment is to control a single four-legged robot bug. There are two such bugs in a round sumo ring, shown from above. "
-    of pvHeldoutReference: "Control: one robot bug. Participants: two four-legged robot bugs. Arena: a round sumo ring. View: from above. "
-    of pvMixed: raise newException(ValueError, "mixed selection must resolve to a training wording")
-  introduction & Rules
+  if selection.selectedVariant == pvCanonical:
+    return CanonicalIntroduction & Rules & ReplyRules
+  let arena = "You control one of two four-legged robot bugs, viewed from above in a circular sumo ring. " &
+    "Coordinates are metres from the arena's bottom-left: x points right and y points up. " &
+    "Bearings turn counter-clockwise from east: 0 right, 90 up, 180 left, 270 down. " &
+    "The ring centre is (4.80, 3.20). Its radius starts at 3.00 metres, begins shrinking " &
+    "six seconds into each round, and reaches 1.80 metres. There is no floor outside."
+  let winning = "Win a round by forcing the other bug's torso centre across the rim or knocking " &
+    "it down three times. At the round deadline, fewer knockdowns wins; a tie goes to the " &
+    "bug nearer the centre. The match is best of five rounds. Each round win adds one " &
+    "point to you and subtracts one from the opponent: scoring is strictly zero-sum."
+  let support = "A bug pushes through legs supported by the floor. A foot beyond the rim provides " &
+    "no support, so the edge reduces both pushing force and balance. LOW posture is wide, " &
+    "slow, resistant to movement and hard to tip. HIGH is tall and fast but easier to tip. " &
+    "LIFT gets underneath the opponent to lever it over, risking your own balance."
+  let tilt = "Off-centre impacts, your own spin, tall posture, and an opponent levering underneath " &
+    "you increase tilt. A full tilt gauge knocks you down for 1.5 seconds. While down, " &
+    "you cannot push and the opponent can shove you out."
+  let orders = "Choose an order every 1.5 seconds for the next 1.5 seconds. The deterministic " &
+    "autopilot executes it 24 times per second, handling steering, moving-target lead, " &
+    "and rim avoidance unless instructed otherwise. You choose the action and its intensity. " &
+    "You cannot communicate with the other bug; none of your written text is visible to it."
+  let briefing = case selection.selectedVariant
+    of pvPlain: arena & "\n\n" & winning & "\n\n" & support & "\n\n" & tilt & "\n\n" & orders
+    of pvNumbered: "1. Arena\n" & arena & "\n2. Winning\n" & winning & "\n3. Support and posture\n" & support & "\n4. Tilt\n" & tilt & "\n5. Decisions\n" & orders
+    of pvQuestions: "How do I win?\n" & winning & "\nWhere do I move?\n" & arena & "\nWhat gives me leverage?\n" & support & "\nWhat knocks me down?\n" & tilt & "\nHow do I command the bug?\n" & orders
+    of pvReordered: "OBJECTIVE\n" & winning & "\nCONTROL\n" & orders & "\nBALANCE\n" & tilt & "\nSUPPORT\n" & support & "\nARENA\n" & arena
+    of pvHeldoutBriefing: "Read your assignment.\n" & arena & "\nAccount for support.\n" & support & "\nTrack instability.\n" & tilt & "\nJudge the outcome.\n" & winning & "\nSubmit your order.\n" & orders
+    of pvHeldoutReference: "Decision reference: " & orders & "\nScoring reference: " & winning & "\nGeometry reference: " & arena & "\nPosture reference: " & support & "\nTilt reference: " & tilt
+    of pvCanonical, pvMixed: raise newException(ValueError, "alternate wording must resolve")
+  briefing & "\n\n" & ReplyRules
 
 proc operatorBlock*(prompt: string): string =
   ## The seat's own PLAYER_PROMPT, under a heading that tells the model how

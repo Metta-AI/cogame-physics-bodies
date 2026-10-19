@@ -19,9 +19,9 @@
 ## turn's, else `pusher`'s. There is no sampling loop, no unbounded search and no
 ## retry-until-success anywhere.
 
-import std/[json, monotimes, os, strutils, times]
+import std/[monotimes, os, strutils, times]
 import curly
-import sim, intents, control, baselines, llm, prompts, evidence
+import sim, intents, control, baselines, llm, prompts
 
 type
   SeatPolicy* = object
@@ -34,8 +34,6 @@ type
     registered*: bool
 
   DecisionEngine* = object
-    attemptIds*: seq[seq[string]]
-    selectedAttemptIds*: seq[string]
     selection*: PromptSelection
     client*: LlmClient
     ctl*: ControlState
@@ -104,15 +102,12 @@ proc intentForBody*(engine: DecisionEngine, sim: SimServer,
 proc turn*(engine: var DecisionEngine, sim: SimServer, turnIndex: int,
            elapsedSeconds: int): seq[string] =
   ## Runs ONE decision turn and installs each seat's intent. Returns the replay
-  ## chat records this turn produced. Provider failures fall back to a legal
-  ## intent; failures writing requested private evidence remain fatal.
+  ## chat records this turn produced. NEVER raises: every failure path ends in
+  ## a legal intent.
   let
     budget = initDuration(milliseconds = max(1, sim.config.turnBudgetMs))
     turnStart = getMonoTime()
     seats = sim.seatCount()
-  engine.attemptIds = newSeq[seq[string]](engine.seats.len)
-  engine.selectedAttemptIds = newSeq[string](engine.seats.len)
-  let captureDir = getEnv("PHYSICS_ATTEMPT_TRACE_DIR")
   ## Throttle state is PER TURN: a daily-token 429 on turn k says nothing about
   ## turn k+1 (the sidecar's window may have rolled), so the flag is cleared
   ## here and only suppresses this turn's retry.
@@ -200,21 +195,8 @@ proc turn*(engine: var DecisionEngine, sim: SimServer, turnIndex: int,
       if attempt > 0:
         user.add("\n\nYour previous reply was not usable. Reply with ONLY " &
           "the JSON object described above, starting with '{'.")
-      let system = systemPrompt(engine.selection)
-      let renderedUser = userMessage(engine.seats[seat].prompt, user)
-      let request = engine.client.requestFor(system, renderedUser, seat)
-      let attemptId = "turn-" & $turnIndex & "-seat-" & $seat & "-attempt-" & $(attempt + 1)
-      engine.attemptIds[seat].add(attemptId)
-      if captureDir.len > 0:
-        writePrivate(captureDir / (attemptId & ".jsonl"), $(%*{
-          "schema_version": 1, "event_type": "attempt_started", "visibility": "private",
-          "attempt_id": attemptId, "turn": turnIndex, "seat": seat,
-          "source_revision": getEnv("PHYSICS_SOURCE_REVISION"),
-          "prompt_configuration": engine.selection.promptMetadata(system, renderedUser),
-          "prompt": [{"role": "system", "content": system}, {"role": "user", "content": renderedUser}],
-          "request": {"body": parseJson(request.body), "url": request.url,
-            "max_output_tokens": engine.client.maxOutputTokens}, "behavior_logprobs": newJNull()
-        }) & "\n")
+      let request = engine.client.requestFor(
+        systemPrompt(engine.selection), userMessage(engine.seats[seat].prompt, user), seat)
       batch.post(request.url, request.headers, request.body, $seat)
     let started = getMonoTime()
     ## curly hands the deadline to CURLOPT_TIMEOUT, whose granularity is WHOLE
@@ -227,22 +209,16 @@ proc turn*(engine: var DecisionEngine, sim: SimServer, turnIndex: int,
     var stillOpen: seq[int]
     for position, seat in open:
       var cause = "parse_error"
-      var responseText, failure: string
-      var proposal = newJNull()
-      var normalized = newJNull()
       try:
-        responseText = engine.client.textOf(
+        let text = engine.client.textOf(
           responses[position].response, responses[position].error,
           batch[position].url)
-        proposal = extractJsonObject(responseText)
-        var intent = parseIntentObject(proposal, engine.intents[seat], engine.haveIntent[seat])
+        var intent = parseIntentReply(text, engine.intents[seat],
+          engine.haveIntent[seat])
         intent.source = isLlm
         intent.latencyMs = latency
         engine.installIntent(seat, intent)
-        engine.selectedAttemptIds[seat] = engine.attemptIds[seat][^1]
-        normalized = intent.intentAction()
       except CatchableError as error:
-        failure = error.msg
         if responses[position].error.len > 0:
           cause = (if "timeout" in responses[position].error.toLowerAscii():
                      "timeout" else: "transport_error")
@@ -255,20 +231,6 @@ proc turn*(engine: var DecisionEngine, sim: SimServer, turnIndex: int,
         echo "physics-bodies llm: seat ", seat, " attempt ", attempt + 1,
           " failed, falling back if it fails again: ", error.msg
         stillOpen.add(seat)
-      if captureDir.len > 0:
-        var responseHeaders = newJObject()
-        for header in responses[position].response.headers:
-          responseHeaders[header[0]] = %header[1]
-        appendPrivate(captureDir / (engine.attemptIds[seat][^1] & ".jsonl"), %*{
-          "schema_version": 1, "event_type": "attempt_finished", "visibility": "private",
-          "attempt_id": engine.attemptIds[seat][^1], "latency_ms": latency,
-          "http_status": responses[position].response.code,
-          "raw_response": responses[position].response.body,
-          "response_headers": responseHeaders, "response": responseText,
-          "transport_error": responses[position].error, "failure": failure,
-          "parsed_action": proposal, "normalized_action": normalized,
-          "selected": seat notin stillOpen, "behavior_logprobs": newJNull()
-        })
     open = stillOpen
     inc attempt
     if engine.client.throttled and open.len > 0:

@@ -34,7 +34,7 @@ import bitworld/runtime
 import bitworld/spriteprotocol
 import mummy
 import sim, global, replays, broadcast, replay_runtime, events, wire_constants
-import intents, control, baselines, decide, prompts, llm, evidence
+import intents, control, baselines, decide, prompts
 
 when defined(posix):
   from std/posix import SHUT_RDWR, shutdown
@@ -592,14 +592,6 @@ proc runServerLoop*(host: string = sim.DefaultHost,
     ServerThreadArgs(server: serverPtr, address: host, port: port))
   httpServer.waitUntilReady()
 
-  let hostTrace = getEnv("PHYSICS_HOST_TRACE_PATH")
-  if hostTrace.len > 0:
-    doAssert not replayLoaded, "private capture requires a live game"
-    writePrivate(hostTrace, $(%*{
-      "schema_version": 1, "event_type": "host_started", "visibility": "private",
-      "source_revision": getEnv("PHYSICS_SOURCE_REVISION"),
-      "prompt_configuration": selection.selectionMetadata(), "seed": config.seed
-    }) & "\n")
   var
     engine = if replayLoaded: DecisionEngine() else: initDecisionEngine(sim, selection)
     lastTick = getMonoTime()
@@ -818,10 +810,6 @@ proc runServerLoop*(host: string = sim.DefaultHost,
             turnIndex = sim.tickCount div turnTicks
           if sim.tickCount mod turnTicks == 0 and turnIndex != lastTurnKey:
             lastTurnKey = turnIndex
-            var privateViews: seq[JsonNode]
-            if hostTrace.len > 0:
-              for seat in 0 ..< sim.seatCount():
-                privateViews.add(parseJson(seatViewJson(engine.viewFor(sim, seat))))
             let records = engine.turn(sim, turnIndex, elapsedSeconds)
             for record in records:
               replayWriter.writeChat(tickTime(sim.tickCount), 0, record)
@@ -829,20 +817,6 @@ proc runServerLoop*(host: string = sim.DefaultHost,
               if not engine.haveIntent[seat]:
                 continue
               let intent = engine.intents[seat]
-              if hostTrace.len > 0:
-                let system = systemPrompt(selection)
-                let user = userMessage(engine.seats[seat].prompt, $privateViews[seat])
-                appendPrivate(hostTrace, %*{
-                  "schema_version": 1, "event_type": "host_decision", "visibility": "private",
-                  "turn": turnIndex, "seat": seat, "tick": sim.tickCount,
-                  "observation": privateViews[seat], "source": $intent.source,
-                  "prompt_configuration": selection.promptMetadata(system, user),
-                  "prompt": [{"role": "system", "content": system}, {"role": "user", "content": user}],
-                  "attempt_ids": engine.attemptIds[seat],
-                  "selected_attempt_id": (if engine.selectedAttemptIds[seat].len > 0:
-                    %engine.selectedAttemptIds[seat] else: newJNull()),
-                  "executed_action": intent.intentAction()
-                })
               case intent.source
               of isLlm: inc sim.llmTurns[seat]
               of isFallback: inc sim.fallbackTurns[seat]
@@ -1006,11 +980,6 @@ proc runServerLoop*(host: string = sim.DefaultHost,
         writeFile(eventsPath, collectedEvents.eventsJsonl(sim.tickCount))
         echo "Events written: ", eventsPath, " (", collectedEvents.len,
           " events)"
-      if hostTrace.len > 0:
-        appendPrivate(hostTrace, %*{
-          "schema_version": 1, "event_type": "host_finished", "visibility": "private",
-          "results": parseJson(sim.playerResultsJson())
-        })
       if runtimeConfig.resultsUri.len > 0:
         runtimeConfig.writeResults(sim.playerResultsJson() & "\n")
       elif saveScoresPath.len > 0:

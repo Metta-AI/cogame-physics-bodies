@@ -147,17 +147,20 @@ MIT. Font licence in [data/FONT_LICENSE.txt](data/FONT_LICENSE.txt).
 Mixed requires an explicit nonnegative `promptSeed` and selects training wording using `promptSeed % 5`.
 Selection stays fixed across seats, rounds, and retries, independently of simulation randomness.
 
-Only the introduction changes. Common rules, strategy text, observation privacy, and reply semantics remain fixed.
+The `physics-bodies-rules-v2` bank varies complete arena, winning, support, posture, tilt, and control explanations.
+Strategy text, observation privacy, numeric rules, and reply syntax remain fixed.
 Prompt selection belongs to the decision engine, outside hashed physics and replay keyframes.
 
 The JSONL bridge accepts prompt fields on reset. Append `text` to its command for native intent responses.
 Numeric mode retains the existing action heads. Both modes report selection and exact message hashes in
 `semantic_view.prompt_template`. Resets default to the training split and reject held-out wording there.
 
-The source exporter accepts `OUTPUT MATCHES [FIRST_SEED] [VARIANT] [PROMPT_VARIANT] [PROMPT_SEED]`.
-It requires a clean committed checkout and emits private complete candidates, not ready-to-train examples.
-Shared Coworld validation and independent content-bound review own admission. Scenario seed families remain
-identical across wording and game variants. Source export rejects held-out wordings.
+The source exporter accepts `OUTPUT MATCHES [FIRST_SEED] [VARIANT] [PROMPT_VARIANT PROMPT_SEED]`.
+Original train/validation JSONL and manifests are retained. Every fifth scenario is validation;
+mixed exports cycle separately within each split so all five presentations reach training.
+Families use `physics-bodies-SEED` across variants. Each row records exact message hashes.
+Export from clean committed source so revision pins identify the code; review content before training.
+Held-out wordings cannot enter source exports.
 
 For matched evaluation, fix policies, game seeds, seat assignment, operator prompts, decoder settings, and
 published budgets. Compare canonical and mixed training on training and held-out wordings. Report scores,
