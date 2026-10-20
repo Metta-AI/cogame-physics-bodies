@@ -21,7 +21,7 @@
 
 import std/[monotimes, os, strutils, times]
 import curly
-import sim, intents, control, baselines, llm
+import sim, intents, control, baselines, llm, prompts
 
 type
   SeatPolicy* = object
@@ -34,6 +34,7 @@ type
     registered*: bool
 
   DecisionEngine* = object
+    selection*: PromptSelection
     client*: LlmClient
     ctl*: ControlState
     seats*: seq[SeatPolicy]
@@ -44,7 +45,8 @@ type
     llmOff*: bool              ## the budget guard fired; scripted from here on
     records*: seq[string]      ## chat records queued for the replay writer
 
-proc initDecisionEngine*(sim: SimServer): DecisionEngine =
+proc initDecisionEngine*(sim: SimServer, selection: PromptSelection): DecisionEngine =
+  result.selection = selection
   result.client = newLlmClient(sim.config)
   result.ctl = initControlState()
   result.seats = newSeq[SeatPolicy](BodyCount)
@@ -194,7 +196,7 @@ proc turn*(engine: var DecisionEngine, sim: SimServer, turnIndex: int,
         user.add("\n\nYour previous reply was not usable. Reply with ONLY " &
           "the JSON object described above, starting with '{'.")
       let request = engine.client.requestFor(
-        SystemPrompt, userMessage(engine.seats[seat].prompt, user), seat)
+        systemPrompt(engine.selection), userMessage(engine.seats[seat].prompt, user), seat)
       batch.post(request.url, request.headers, request.body, $seat)
     let started = getMonoTime()
     ## curly hands the deadline to CURLOPT_TIMEOUT, whose granularity is WHOLE

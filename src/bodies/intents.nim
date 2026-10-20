@@ -292,6 +292,13 @@ proc parseIntentReply*(text: string, previous: BugIntent,
                        hasPrevious: bool): BugIntent =
   parseIntentObject(extractJsonObject(text), previous, hasPrevious)
 
+proc intentAction*(intent: BugIntent): JsonNode =
+  ## The normalized policy response, excluding replay and transport metadata.
+  %*{"note": intent.note, "stance": $intent.stance, "aim": $intent.aim,
+    "bearing_deg": intent.bearingDeg, "aggression": intent.aggression,
+    "posture_bias": $intent.postureBias, "lead_ticks": intent.leadTicks,
+    "circle_dir": intent.circleDir, "say": intent.say}
+
 proc intentJson*(intent: BugIntent, turn, seat, body: int): JsonNode =
   ## The replay chat record for one turn's intent. Re-applied at playback into
   ## NON-HASHED fields only: it drives the broadcast feed and

@@ -199,3 +199,13 @@ With `COGAME_EVENTS_URI` set (file:// only), the game writes JSON lines — one 
 per event (`contact`, `shove`, `stagger`, `knockdown`, `rim_slip`, `ring_out`,
 `round_end`, `intent`, `phase`) plus a mandatory trailing summary row carrying
 `type`, `ticks`, `events` and `gameVersion`.
+
+## Prompt selection
+
+Game configuration accepts `promptVariant` and `promptSeed` for episode-stable rules wording.
+Selection does not enter physics configuration or replay keyframes. The engine, exporter, and
+bridge share one renderer. Export and bridge metadata retain selection and exact message hashes.
+
+Bridge resets accept `split` (`train`, `validation`, or `test`), defaulting to `train`.
+Training rejects held-out wording. Text mode uses the native tolerant intent parser, including
+previous-intent repair and note/say normalization. Numeric encoding and its seven action heads are unchanged.

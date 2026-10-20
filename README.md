@@ -139,3 +139,36 @@ the declared-acceptable `deadline`); a champion seat's intents must carry
 ## Licence
 
 MIT. Font licence in [data/FONT_LICENSE.txt](data/FONT_LICENSE.txt).
+
+## Episode prompt diversity
+
+`promptVariant` selects `canonical`, `plain`, `numbered`, `questions`, `reordered`,
+`heldout-briefing`, `heldout-reference`, or `mixed`. Canonical retains the original structure,
+with corrected match-length and scoring explanations.
+Mixed requires an explicit nonnegative `promptSeed` and selects training wording using `promptSeed % 5`.
+Selection stays fixed across seats, rounds, and retries, independently of simulation randomness.
+
+The `physics-bodies-rules-v3` bank varies complete arena, winning, support, posture, tilt, and control explanations.
+Strategy text, observation privacy, numeric rules, and reply syntax remain fixed.
+Prompt selection belongs to the decision engine, outside hashed physics and replay keyframes.
+
+The JSONL bridge accepts prompt fields on reset. Append `text` to its command for native intent responses.
+Numeric mode retains the existing action heads. Both modes report selection and exact message hashes in
+`semantic_view.prompt_template`. Resets default to the training split and reject held-out wording there.
+
+The source exporter accepts `OUTPUT MATCHES [FIRST_SEED] [VARIANT] [PROMPT_VARIANT PROMPT_SEED]`.
+Original train/validation JSONL and manifests are retained. Every fifth scenario is validation;
+mixed exports cycle separately within each split so all five presentations reach training.
+Families use `physics-bodies-SEED` across variants. Each row records exact message hashes.
+Export from clean committed source so revision pins identify the code; review content before training.
+Held-out wordings cannot enter source exports.
+
+For matched evaluation, fix policies, game seeds, seat assignment, operator prompts, decoder settings, and
+published budgets. Compare canonical and mixed training on training and held-out wordings. Report scores,
+invalid replies, retries, fallback rate, and between-wording variance, including failed and incomplete games.
+Deterministic fixture equivalence does not establish improved learning stability.
+
+Version three independently phrases alternate and held-out explanations. Every wording
+uses the observed match length instead of assuming best-of-five and includes the
+0.25 ring-out/knockout bonus. Reply syntax and simulation rules are unchanged.
+Export IDs include requested selection, resolved wording, and prompt seed; scenario families stay fixed.

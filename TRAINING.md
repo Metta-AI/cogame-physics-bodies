@@ -41,14 +41,8 @@ The parsed intent drives the controller and simulator. Entire matches stay in
 one split. The export manifest records source revision, variant, scores, wins,
 and row counts. Existing output directories are never overwritten.
 
-Train either output with Metta post-training:
-
-```sh
-nix develop -c uv run --package metta-posttrain --extra train \
-  python -m metta_posttrain.train --dataset /tmp/physics-bodies-default \
-  --output /tmp/physics-bodies-adapter --model Qwen/Qwen3-0.6B \
-  --max-steps 100 --max-length 4096
-```
+Use the [post-training research package](https://github.com/Metta-AI/posttraining-research/tree/main/packages/metta-posttraining)
+for current training and adapter-packaging workflows.
 
 The local 10-match exports contained 804 training and 202 validation examples
 for default, and 480 training and 120 validation examples for blitz. All 1,606

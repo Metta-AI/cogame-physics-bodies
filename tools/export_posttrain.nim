@@ -1,19 +1,22 @@
 ## Export complete native matches as Metta post-training examples.
-## Usage: nim r --path:src tools/export_posttrain.nim OUTPUT MATCHES [FIRST_SEED] [default|blitz]
+## Usage: nim r --path:src tools/export_posttrain.nim OUTPUT MATCHES [FIRST_SEED] [default|blitz] [PROMPT_VARIANT PROMPT_SEED]
 
 import std/[json, os, osproc, strutils]
-import bodies/[sim, intents, control, baselines, llm]
+import bodies/[sim, intents, control, baselines, llm, prompts]
 
 const OperatorPrompt = "Win the ring match using only your own observation."
 
 when isMainModule:
   let args = commandLineParams()
-  if args.len notin 2 .. 4:
-    quit("usage: export_posttrain OUTPUT MATCHES [FIRST_SEED] [default|blitz]", 1)
+  if args.len notin [2, 3, 4, 6]:
+    quit("usage: export_posttrain OUTPUT MATCHES [FIRST_SEED] [default|blitz] [PROMPT_VARIANT PROMPT_SEED]", 1)
   let output = args[0]
   let matches = parseInt(args[1])
   let firstSeed = if args.len >= 3: parseInt(args[2]) else: 1
-  let variant = if args.len == 4: args[3] else: "default"
+  let variant = if args.len >= 4: args[3] else: "default"
+  let configured = promptSelection(if args.len == 6:
+    %*{"promptVariant": args[4], "promptSeed": parseInt(args[5])} else: newJObject())
+  doAssert configured.selectedVariant notin {pvHeldoutBriefing, pvHeldoutReference}, "held-out wording is evaluation only"
   if matches < 10 or firstSeed < 1:
     quit("at least ten matches and a positive first seed are required", 1)
   if variant notin ["default", "blitz"]:
@@ -32,7 +35,13 @@ when isMainModule:
     trainRows: seq[string]
     validationRows: seq[string]
     runs = newJArray()
+    wordingCounts: array[2, int]
   for seed in firstSeed ..< firstSeed + matches:
+    var selection = configured
+    let split = ord(seed mod 5 == 0)
+    if selection.variant == pvMixed:
+      selection.seed += wordingCounts[split]
+      inc wordingCounts[split]
     var config = defaultGameConfig()
     let runtimeConfig = copy(variantConfig)
     runtimeConfig["tokens"] = %["t0", "t1"]
@@ -58,31 +67,17 @@ when isMainModule:
           for seat in 0 ..< BodyCount:
             let view = seatView(sim, seat, haveIntent[seat], intents[seat])
             let teacher = scriptedIntent(ctl.params, view, blPusher)
-            let completion = %*{
-              "note": teacher.note,
-              "stance": $teacher.stance,
-              "aim": $teacher.aim,
-              "bearing_deg": teacher.bearingDeg,
-              "aggression": teacher.aggression,
-              "posture_bias": $teacher.postureBias,
-              "lead_ticks": teacher.leadTicks,
-              "circle_dir": teacher.circleDir,
-              "say": teacher.say
-            }
+            let completion = teacher.intentAction()
             let parsed = parseIntentReply($completion, intents[seat], haveIntent[seat])
-            doAssert parsed.stance == teacher.stance
-            doAssert parsed.aim == teacher.aim
-            doAssert parsed.bearingDeg == teacher.bearingDeg
-            doAssert parsed.aggression == teacher.aggression
-            doAssert parsed.postureBias == teacher.postureBias
-            doAssert parsed.leadTicks == teacher.leadTicks
-            doAssert parsed.circleDir == teacher.circleDir
+            doAssert parsed.intentAction() == completion
             rows.add($(%*{
-              "episode_id": "physics-bodies-" & variant & "-" & $seed,
-              "seed": "physics-bodies-" & variant & "-" & $seed,
+              "episode_id": "physics-bodies-" & variant & "-" & $seed & "-" &
+                $selection.variant & "-" & $selection.selectedVariant & "-" & $selection.seed,
+              "seed": "physics-bodies-" & $seed,
               "decision_id": turn * BodyCount + seat,
+              "prompt_template": selection.promptMetadata(systemPrompt(selection), userMessage(OperatorPrompt, seatViewJson(view))),
               "prompt": [
-                {"role": "system", "content": SystemPrompt},
+                {"role": "system", "content": systemPrompt(selection)},
                 {"role": "user", "content": userMessage(OperatorPrompt, seatViewJson(view))}
               ],
               "completion": [{"role": "assistant", "content": $completion}],

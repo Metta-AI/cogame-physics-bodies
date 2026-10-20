@@ -14,7 +14,7 @@ import mummy
 from whisky import nil
 import bitworld/runtime
 import bitworld/spriteprotocol
-import bodies/[sim, intents, control, baselines, llm, decide, replays]
+import bodies/[sim, intents, control, baselines, llm, decide, replays, prompts]
 import bodies/server as gameServer
 import helpers
 
@@ -102,7 +102,7 @@ putEnv("AWS_ENDPOINT_URL_BEDROCK_RUNTIME", "http://127.0.0.1:8791")
 putEnv("AWS_BEARER_TOKEN_BEDROCK", "fake-token")
 
 proc freshEngine(sim: SimServer, prompts = true): DecisionEngine =
-  result = initDecisionEngine(sim)
+  result = initDecisionEngine(sim, PromptSelection())
   for seat in 0 ..< BodyCount:
     result.seats[seat].registered = true
     result.seats[seat].isLlm = prompts
@@ -394,7 +394,7 @@ block:
 # --- a seat with NO intent is driven by `pusher`, never left idle -----
 block:
   var sim = playingSim()
-  var engine = initDecisionEngine(sim)
+  var engine = initDecisionEngine(sim, PromptSelection())
   for i in 0 ..< BodyCount:
     let intent = engine.intentForBody(sim, i)
     check intent.stance in [stanceCharge, stanceBrace, stanceLift,

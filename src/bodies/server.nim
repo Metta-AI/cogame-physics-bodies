@@ -34,7 +34,7 @@ import bitworld/runtime
 import bitworld/spriteprotocol
 import mummy
 import sim, global, replays, broadcast, replay_runtime, events, wire_constants
-import intents, control, baselines, decide
+import intents, control, baselines, decide, prompts
 
 when defined(posix):
   from std/posix import SHUT_RDWR, shutdown
@@ -514,6 +514,9 @@ proc runServerLoop*(host: string = sim.DefaultHost,
                     saveScoresPath = "",
                     runtimeConfig = RuntimeConfig()) =
   initAppState()
+  let selection = promptSelection(
+    if runtimeConfig.config.len > 0: parseJson(runtimeConfig.config)
+    else: newJObject())
   if saveReplayPath.len > 0 and loadReplayPath.len > 0:
     raise newException(ReplayError, "Cannot save and load a replay together")
   var replayLoaded = loadReplayPath.len > 0
@@ -590,7 +593,7 @@ proc runServerLoop*(host: string = sim.DefaultHost,
   httpServer.waitUntilReady()
 
   var
-    engine = if replayLoaded: DecisionEngine() else: initDecisionEngine(sim)
+    engine = if replayLoaded: DecisionEngine() else: initDecisionEngine(sim, selection)
     lastTick = getMonoTime()
     episodeStart = getMonoTime()
     deadlineHit = false
