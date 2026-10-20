@@ -171,4 +171,4 @@ Deterministic fixture equivalence does not establish improved learning stability
 Version three independently phrases alternate and held-out explanations. Every wording
 uses the observed match length instead of assuming best-of-five and includes the
 0.25 ring-out/knockout bonus. Reply syntax and simulation rules are unchanged.
-Export IDs include selected wording and prompt seed; scenario families stay fixed.
+Export IDs include requested selection, resolved wording, and prompt seed; scenario families stay fixed.
