@@ -71,7 +71,8 @@ when isMainModule:
             let parsed = parseIntentReply($completion, intents[seat], haveIntent[seat])
             doAssert parsed.intentAction() == completion
             rows.add($(%*{
-              "episode_id": "physics-bodies-" & variant & "-" & $seed,
+              "episode_id": "physics-bodies-" & variant & "-" & $seed & "-" &
+                $selection.selectedVariant & "-" & $selection.seed,
               "seed": "physics-bodies-" & $seed,
               "decision_id": turn * BodyCount + seat,
               "prompt_template": selection.promptMetadata(systemPrompt(selection), userMessage(OperatorPrompt, seatViewJson(view))),

@@ -143,11 +143,12 @@ MIT. Font licence in [data/FONT_LICENSE.txt](data/FONT_LICENSE.txt).
 ## Episode prompt diversity
 
 `promptVariant` selects `canonical`, `plain`, `numbered`, `questions`, `reordered`,
-`heldout-briefing`, `heldout-reference`, or `mixed`. Canonical preserves the original prompt bytes.
+`heldout-briefing`, `heldout-reference`, or `mixed`. Canonical retains the original structure,
+with corrected match-length and scoring explanations.
 Mixed requires an explicit nonnegative `promptSeed` and selects training wording using `promptSeed % 5`.
 Selection stays fixed across seats, rounds, and retries, independently of simulation randomness.
 
-The `physics-bodies-rules-v2` bank varies complete arena, winning, support, posture, tilt, and control explanations.
+The `physics-bodies-rules-v3` bank varies complete arena, winning, support, posture, tilt, and control explanations.
 Strategy text, observation privacy, numeric rules, and reply syntax remain fixed.
 Prompt selection belongs to the decision engine, outside hashed physics and replay keyframes.
 
@@ -166,3 +167,8 @@ For matched evaluation, fix policies, game seeds, seat assignment, operator prom
 published budgets. Compare canonical and mixed training on training and held-out wordings. Report scores,
 invalid replies, retries, fallback rate, and between-wording variance, including failed and incomplete games.
 Deterministic fixture equivalence does not establish improved learning stability.
+
+Version three independently phrases alternate and held-out explanations. Every wording
+uses the observed match length instead of assuming best-of-five and includes the
+0.25 ring-out/knockout bonus. Reply syntax and simulation rules are unchanged.
+Export IDs include selected wording and prompt seed; scenario families stay fixed.

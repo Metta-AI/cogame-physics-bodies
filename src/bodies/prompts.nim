@@ -17,7 +17,7 @@ type
     seed*: int
 
 const
-  PromptBankVersion* = "physics-bodies-rules-v2"
+  PromptBankVersion* = "physics-bodies-rules-v3"
 
 proc promptSelection*(node: JsonNode): PromptSelection =
   if node.kind != JObject:

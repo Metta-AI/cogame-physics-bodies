@@ -7,15 +7,35 @@ import subprocess
 from pathlib import Path
 
 VARIANTS = ("default", "blitz")
-WORDINGS = ("canonical", "plain", "numbered", "questions", "reordered", "heldout-briefing", "heldout-reference")
+WORDINGS = (
+    "canonical",
+    "plain",
+    "numbered",
+    "questions",
+    "reordered",
+    "heldout-briefing",
+    "heldout-reference",
+)
 
 
-def play(binary: Path, manifest: Path, variant: str, text_mode: bool, wording: str, prompt_seed: int, seed: int) -> str:
+def play(
+    binary: Path,
+    manifest: Path,
+    variant: str,
+    text_mode: bool,
+    wording: str,
+    prompt_seed: int,
+    seed: int,
+) -> str:
     command = [str(binary), str(manifest), variant]
     if text_mode:
         command.append("text")
     process = subprocess.Popen(
-        command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True
+        command,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
     )
     input_stream, output_stream = process.stdin, process.stdout
     assert input_stream is not None and output_stream is not None
@@ -49,7 +69,7 @@ def play(binary: Path, manifest: Path, variant: str, text_mode: bool, wording: s
             metadata = view.pop("prompt_template")
             system, user = [m["content"] for m in observation["messages"]]
             assert metadata == {
-                "bank": "physics-bodies-rules-v2",
+                "bank": "physics-bodies-rules-v3",
                 "selection": wording,
                 "variant": selected,
                 "seed": prompt_seed,
@@ -59,23 +79,42 @@ def play(binary: Path, manifest: Path, variant: str, text_mode: bool, wording: s
             if system_bytes is None:
                 system_bytes = system
             assert system == system_bytes
-            observation["messages"][0]["content"] = system[system.index("Reply with a single JSON object") :]
+            observation["messages"][0]["content"] = system[
+                system.index("Reply with a single JSON object") :
+            ]
             rounds.add(view["clock"]["round"])
-            assert not {"intent", "note", "say", "prompt", "policy", "policyKind", "latency_ms"} & view["foe"].keys()
+            assert (
+                not {
+                    "intent",
+                    "note",
+                    "say",
+                    "prompt",
+                    "policy",
+                    "policyKind",
+                    "latency_ms",
+                }
+                & view["foe"].keys()
+            )
             assert not {"seed", "perm", "variant"} & view.keys()
             record(observation)
             record(request({"kind": "encode"}))
             proposal = request({"kind": "teacher"})
             record(proposal)
             response = request(
-                {"kind": "step", "decision_id": observation["decision_id"], "response": proposal["response"]}
+                {
+                    "kind": "step",
+                    "decision_id": observation["decision_id"],
+                    "response": proposal["response"],
+                }
             )
             assert response["kind"] == "accepted"
             record(response["action"])
             observation = response["observation"]
             decisions += 1
             assert decisions <= 200
-        assert observation["kind"] == "terminal" and rounds and rounds <= {1, 2, 3, 4, 5}
+        assert (
+            observation["kind"] == "terminal" and rounds and rounds <= {1, 2, 3, 4, 5}
+        )
         assert set(observation["scores"]) == {str(i) for i in range(2)}
         assert sum(observation["scores"].values()) == 0
         record(observation)
@@ -95,18 +134,45 @@ def main() -> None:
     for variant in VARIANTS:
         for text_mode in (False, True):
             for seed in (1,):
-                canonical = play(args.binary.resolve(), manifest, variant, text_mode, "canonical", 0, seed)
+                canonical = play(
+                    args.binary.resolve(),
+                    manifest,
+                    variant,
+                    text_mode,
+                    "canonical",
+                    0,
+                    seed,
+                )
                 count += 1
                 selections = [(w, 0) for w in WORDINGS[1:]] + [("mixed", 4)]
                 for wording, prompt_seed in selections:
                     assert (
-                        play(args.binary.resolve(), manifest, variant, text_mode, wording, prompt_seed, seed)
+                        play(
+                            args.binary.resolve(),
+                            manifest,
+                            variant,
+                            text_mode,
+                            wording,
+                            prompt_seed,
+                            seed,
+                        )
                         == canonical
                     )
                     count += 1
-                print(variant, "text" if text_mode else "numeric", seed, "8 complete games PASS", flush=True)
+                print(
+                    variant,
+                    "text" if text_mode else "numeric",
+                    seed,
+                    "8 complete games PASS",
+                    flush=True,
+                )
     for wording in ("heldout-briefing", "heldout-reference"):
-        reset = {"kind": "reset", "players": 2, "seed": "heldout-guard", "promptVariant": wording}
+        reset = {
+            "kind": "reset",
+            "players": 2,
+            "seed": "heldout-guard",
+            "promptVariant": wording,
+        }
         if wording == "heldout-reference":
             reset["split"] = "train"
         rejected = subprocess.run(
