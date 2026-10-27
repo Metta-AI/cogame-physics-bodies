@@ -34,7 +34,7 @@ import bitworld/runtime
 import bitworld/spriteprotocol
 import mummy
 import sim, global, replays, broadcast, replay_runtime, events, wire_constants
-import intents, control, baselines, decide, prompts
+import intents, control, baselines, decide, prompts, training_capture
 
 when defined(posix):
   from std/posix import SHUT_RDWR, shutdown
@@ -955,6 +955,7 @@ proc runServerLoop*(host: string = sim.DefaultHost,
             discard markSocketClosed(globalViewers[i])
 
     if quitAfterFrame:
+      engine.capture.finishCapture(parseJson(sim.playerResultsJson()))
       ## The `result` control record: the full results document, written once
       ## into the replay chat stream at episode end, so the bytes are
       ## SELF-SUFFICIENT. Never applied as a shout at playback (a leading '{'

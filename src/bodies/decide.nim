@@ -19,9 +19,9 @@
 ## turn's, else `pusher`'s. There is no sampling loop, no unbounded search and no
 ## retry-until-success anywhere.
 
-import std/[monotimes, os, strutils, times]
+import std/[json, monotimes, os, strutils, times]
 import curly
-import sim, intents, control, baselines, llm, prompts
+import sim, intents, control, baselines, llm, prompts, training_capture
 
 type
   SeatPolicy* = object
@@ -34,6 +34,7 @@ type
     registered*: bool
 
   DecisionEngine* = object
+    capture*: RuntimeCapture
     selection*: PromptSelection
     client*: LlmClient
     ctl*: ControlState
@@ -47,6 +48,7 @@ type
 
 proc initDecisionEngine*(sim: SimServer, selection: PromptSelection): DecisionEngine =
   result.selection = selection
+  result.capture = newRuntimeCapture("physics-bodies", sim.config.seed)
   result.client = newLlmClient(sim.config)
   result.ctl = initControlState()
   result.seats = newSeq[SeatPolicy](BodyCount)
@@ -127,6 +129,12 @@ proc turn*(engine: var DecisionEngine, sim: SimServer, turnIndex: int,
         max(0, sim.config.wallClockBudgetSeconds - elapsedSeconds)))
       echo "physics-bodies: budget guard fired at turn ", turnIndex,
         "; remaining turns play scripted"
+
+  if engine.capture != nil:
+    var observations: seq[JsonNode]
+    for seat in 0 ..< engine.seats.len:
+      observations.add(parseJson(seatViewJson(engine.viewFor(sim, seat))))
+    engine.capture.beginTurn(observations)
 
   # --- which seats need a call? -------------------------------------------
   var open: seq[int]
@@ -209,16 +217,23 @@ proc turn*(engine: var DecisionEngine, sim: SimServer, turnIndex: int,
     var stillOpen: seq[int]
     for position, seat in open:
       var cause = "parse_error"
+      var evidence = modelAttempt($sim.tickCount & "-" & $seat & "-" & $(attempt + 1),
+        engine.seats[seat].label, engine.client.requestedModel(), batch[position].url,
+        batch[position].body, responses[position].response, responses[position].error, latency)
       try:
         let text = engine.client.textOf(
           responses[position].response, responses[position].error,
           batch[position].url)
+        evidence.response = %text
         var intent = parseIntentReply(text, engine.intents[seat],
           engine.haveIntent[seat])
         intent.source = isLlm
         intent.latencyMs = latency
         engine.installIntent(seat, intent)
+        evidence.parsedAction = intent.intentAction()
+        evidence.accepted = true
       except CatchableError as error:
+        evidence.rejectionReason = some(error.msg)
         if responses[position].error.len > 0:
           cause = (if "timeout" in responses[position].error.toLowerAscii():
                      "timeout" else: "transport_error")
@@ -231,6 +246,7 @@ proc turn*(engine: var DecisionEngine, sim: SimServer, turnIndex: int,
         echo "physics-bodies llm: seat ", seat, " attempt ", attempt + 1,
           " failed, falling back if it fails again: ", error.msg
         stillOpen.add(seat)
+      engine.capture.recordAttempt(seat, evidence)
     open = stillOpen
     inc attempt
     if engine.client.throttled and open.len > 0:
@@ -257,3 +273,10 @@ proc turn*(engine: var DecisionEngine, sim: SimServer, turnIndex: int,
     ## "falling back" is the phrase phase 60 greps the GAME log for.
     echo "physics-bodies llm: seat ", seat, " falling back to pusher (",
       cause, ") on turn ", turnIndex
+
+  for seat in 0 ..< engine.seats.len:
+    let origin = if engine.intents[seat].source == isLlm: aoModel
+      elif engine.intents[seat].source == isScripted and engine.seats[seat].registered: aoTeacher
+      else: aoFallback
+    engine.capture.applied(seat, sim.tickCount, engine.intents[seat].intentAction(), origin,
+      if origin == aoTeacher: "scripted-" & $engine.seats[seat].baseline else: "engine-physics-bodies-fallback")
